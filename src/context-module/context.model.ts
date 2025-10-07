@@ -9,7 +9,16 @@ export class Context {
   name: string;
 
   @Prop({ required: true })
-  prompt: string;
+  alias: string;
+
+  @Prop({ required: true })
+  promptQuestion: string;
+
+  @Prop({ required: true })
+  promptAnswer: string;
+
+  @Prop()
+  promptRule: string;
 
   @Prop({ default: true })
   isActive: boolean;

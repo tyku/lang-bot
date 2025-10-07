@@ -10,5 +10,6 @@ import { ContextRepository } from './context.repository';
     MongooseModule.forFeature([{ name: Context.name, schema: ContextSchema }]),
   ],
   providers: [ContextRepository, ContextProvider],
+  exports: [ContextProvider],
 })
-export class UserModule {}
+export class ContextModule {}

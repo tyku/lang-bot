@@ -1,10 +1,4 @@
-import {
-  FilterQuery,
-  Model,
-  ProjectionType,
-  QueryOptions,
-  UpdateQuery,
-} from 'mongoose';
+import { FilterQuery, Model, ProjectionType, QueryOptions } from 'mongoose';
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Context, ContextDocument } from './context.model';
@@ -13,22 +7,16 @@ import { Context, ContextDocument } from './context.model';
 export class ContextRepository {
   constructor(@InjectModel(Context.name) private model: Model<Context>) {}
 
-  create(data: Record<string, any>) {
-    return this.model.create(data);
-  }
-
-  findOneAndUpdate(
-    filter?: FilterQuery<ContextDocument>,
-    update?: UpdateQuery<ContextDocument>,
+  find(
+    filter: FilterQuery<ContextDocument> = {},
+    projection?: ProjectionType<ContextDocument>,
+    options?: QueryOptions<ContextDocument>,
   ) {
-    return this.model.findOneAndUpdate(filter, update, {
-      new: true,
-      upsert: true,
-    });
+    return this.model.find<ContextDocument>(filter, projection, options);
   }
 
   findOne(
-    filter?: FilterQuery<ContextDocument>,
+    filter: FilterQuery<ContextDocument> = {},
     projection?: ProjectionType<ContextDocument>,
     options?: QueryOptions<ContextDocument>,
   ) {

@@ -8,8 +8,11 @@ export class User {
   @Prop({ required: true })
   chatId: number;
 
-  @Prop({ required: true })
-  name: string;
+  @Prop()
+  username?: string;
+
+  @Prop()
+  firstName?: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

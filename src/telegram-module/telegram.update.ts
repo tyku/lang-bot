@@ -1,41 +1,43 @@
-import { Command, Ctx, Start, Update } from 'nestjs-telegraf';
-import { Context, Scenes } from 'telegraf';
+import { Action, Command, Ctx, Start, Update } from 'nestjs-telegraf';
+import { Scenes } from 'telegraf';
+
+import { LoggerProvider } from '../logger-module/logger.provider';
 
 @Update()
 export class TelegramUpdate {
+  constructor(private logger: LoggerProvider) {}
+
   @Start()
   async onStart(
     @Ctx()
-    ctx: Context,
+    ctx: Scenes.SceneContext,
   ): Promise<void> {
-// @ts-ignore
-    console.log('===================', ctx.scene.enter)
-    // await ctx.scene.leave();
+    await ctx.scene.leave();
 
-
-    // await ctx.scene.enter('SUBSCRIPTION_SCENE_ID');
-
-    await ctx.reply('asdasd');
+    await ctx.scene.enter('NEWUSER_SCENE_ID');
   }
-
 
   @Command('scene')
-  async onSceneCommand(@Ctx() ctx: Context): Promise<void> {
-    // @ts-ignore
-    console.log('-----------', ctx.scene)
-    // @ts-ignore
+  async onSceneCommand(@Ctx() ctx: Scenes.SceneContext): Promise<void> {
+    await ctx.reply('hello');
     await ctx.scene.enter('');
   }
-  // @Action('generate_again')
-  // async onGenerate(@Ctx() ctx: Scenes.SceneContext) {
-  //   delete ctx.session.source;
-  //
-  //   try {
-  //     await ctx.deleteMessage();
-  //   } catch (e) {}
-  //
-  //   await ctx.scene.enter('GENERATE_SCENE_ID');
-  // }
+
+  @Action(/^trainer:.+$/)
+  async onTrainer(
+    @Ctx() ctx: Scenes.SceneContext & { update: { callback_query: any } },
+  ) {
+    try {
+      await ctx.deleteMessage();
+    } catch (e) {
+      this.logger.error(`${this.constructor.name} onTrainer error:`, e);
+    }
+
+    const action = ctx.update.callback_query?.data;
+    const value = action.split(':')[1];
+
+    await ctx.scene.enter('TRAINER_SCENE_ID', { contextName: value });
+  }
   //
   // @Action('withdraw')
   // async onWithdraw(@Ctx() ctx: SceneContext) {
