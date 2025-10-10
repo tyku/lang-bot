@@ -21,7 +21,6 @@ FROM base AS release
 # copy work dirs
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
-COPY --from=build /app/sources ./sources
 #COPY --from=build /app/migrations ./migrations
 
 
