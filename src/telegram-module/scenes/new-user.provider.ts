@@ -40,10 +40,10 @@ export class NewUserProvider {
         text: name,
         callback_data: `trainer:${alias}`,
       };
-      acc.push(button);
+      acc.push([button]);
 
       return acc;
-    }, [] as InlineKeyboardButton[]);
+    }, [] as InlineKeyboardButton[][]);
 
     await ctx.replyWithMarkdownV2(
       `😏 Привет${user ? ', ' + user : ''}\\! Я \\- продвинутая нейронная сеть\\.\n` +
@@ -56,7 +56,7 @@ export class NewUserProvider {
       {
         reply_markup: {
           inline_keyboard: [
-            menuButtons,
+            ...menuButtons,
             [
               {
                 text: '📬 Поддержка',
