@@ -3,7 +3,7 @@ import { ChatRepository } from './chat.repository';
 
 @Injectable()
 export class ChatProvider {
-  constructor(private contextRepo: ChatRepository) {}
+  constructor(private chatRepo: ChatRepository) {}
 
   addRecord(
     chatId: number,
@@ -14,14 +14,14 @@ export class ChatProvider {
       return false;
     }
 
-    return this.contextRepo
+    return this.chatRepo
       .addContentOrCreate(chatId, contextId, data)
       .lean()
       .exec();
   }
 
   async getRecords(chatId: number, contextId: string) {
-    const records = await this.contextRepo
+    const records = await this.chatRepo
       .findOne({ chatId, contextId }, { content: 1 })
       .lean()
       .exec();
@@ -31,5 +31,18 @@ export class ChatProvider {
     }
 
     return [];
+  }
+
+  async getLastQuestion(chatId: number, contextId: string) {
+    const record = await this.chatRepo
+      .findOne({ chatId, contextId }, { content: { $slice: -1 } })
+      .lean()
+      .exec();
+
+    if (!record) {
+      return null;
+    }
+
+    return record.content.length > 0 ? record.content[0] : null;
   }
 }

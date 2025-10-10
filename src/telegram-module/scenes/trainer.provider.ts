@@ -8,6 +8,7 @@ import { LoggerProvider } from '../../logger-module/logger.provider';
 import type { TMessageType } from '../types/message';
 import { ChatProvider } from '../../chat-module/chat.provider';
 import { Chat } from '@telegraf/types';
+import { TMessageData } from '../../services/types';
 
 const readyText = [
   '🤓 Хочу узнать, как это предложение звучит по-английски!',
@@ -121,14 +122,29 @@ export class TrainerProvider {
       throw new Error(`Context not found: ${contextName}`);
     }
 
+    const chatId =
+      (ctx.update as any)?.message?.chat?.id ||
+      (ctx.update as any)?.callback_query?.message?.chat?.id;
+
+    const record = await this.chatProvider.getLastQuestion(chatId, context._id.toString());
+
+    const messageData: TMessageData[] = [];
+
+    if (record) {
+      messageData.push({
+        type: 'text',
+        text: `Предложение, которое нужно было первести: "${record.question}"`,
+      });
+    }
+
+    messageData.push({
+      type: 'text',
+      text: message.text,
+    });
+
     const result = await this.openRouterProvider.sendMessage(
       context.promptAnswer,
-      [
-        {
-          type: 'text',
-          text: message.text,
-        },
-      ],
+      messageData,
     );
 
     const clearedMessage = result.choices[0].message.content

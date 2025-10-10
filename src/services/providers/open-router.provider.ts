@@ -3,12 +3,9 @@ import { Injectable } from '@nestjs/common';
 import { BaseService } from '../base.service';
 import { OPEN_ROUTER_PROVIDER_TOKEN } from '../constants';
 
-const GPT_4_MINI_MODEL = 'openai/gpt-4o-mini';
+import type { TMessageData } from '../types';
 
-type TMessageData = {
-  type: 'text';
-  text: string;
-};
+const GPT_4_MINI_MODEL = 'openai/gpt-4o-mini';
 
 @Injectable()
 export class OpenRouterProvider extends BaseService {
