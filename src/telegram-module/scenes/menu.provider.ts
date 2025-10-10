@@ -46,7 +46,7 @@ export class MenuProvider {
       {
         reply_markup: {
           inline_keyboard: [
-            ...menuButtons,
+            menuButtons,
             [
               {
                 text: '📬 Поддержка',
