@@ -2,13 +2,14 @@ import { Module } from '@nestjs/common';
 
 import { TelegramUpdate } from './telegram.update';
 import { SubscriptionProvider } from './scenes/subscription.provider';
+import { TrainerProvider } from './scenes/trainer.provider';
 import { NewUserProvider } from './scenes/new-user.provider';
 import { UserModule } from '../user-module/user.module';
 import { ContextModule } from '../context-module/context.module';
-import { TrainerProvider } from './scenes/trainer.provider';
+import { ChatModule } from '../chat-module/chat.module';
 
 @Module({
-  imports: [UserModule, ContextModule],
+  imports: [UserModule, ContextModule, ChatModule],
   providers: [
     TelegramUpdate,
     NewUserProvider,

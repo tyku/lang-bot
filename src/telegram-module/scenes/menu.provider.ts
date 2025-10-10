@@ -30,10 +30,10 @@ export class MenuProvider {
         callback_data: `load_${alias}`,
       };
 
-      acc.push(button);
+      acc.push([button]);
 
       return acc;
-    }, [] as InlineKeyboardButton[]);
+    }, [] as InlineKeyboardButton[][]);
 
     await ctx.replyWithMarkdownV2(
       '😏 Привет\\! Я - продвинутая нейронная сеть\\.\n' +
@@ -46,7 +46,7 @@ export class MenuProvider {
       {
         reply_markup: {
           inline_keyboard: [
-            menuButtons,
+            ...menuButtons,
             [
               {
                 text: '📬 Поддержка',

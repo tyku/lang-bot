@@ -6,6 +6,8 @@ import { OpenRouterProvider } from '../../services/providers';
 import { LoggerProvider } from '../../logger-module/logger.provider';
 
 import type { TMessageType } from '../types/message';
+import { ChatProvider } from '../../chat-module/chat.provider';
+import { Chat } from '@telegraf/types';
 
 const readyText = [
   '🤓 Хочу узнать, как это предложение звучит по-английски!',
@@ -41,6 +43,7 @@ function getStatus(status: string) {
 export class TrainerProvider {
   constructor(
     private contextProvider: ContextProvider,
+    private chatProvider: ChatProvider,
     private openRouterProvider: OpenRouterProvider,
     private logger: LoggerProvider,
   ) {}
@@ -204,8 +207,26 @@ export class TrainerProvider {
       throw new Error(`Context not found: ${contextName}`);
     }
 
+    const chatId =
+      (ctx.update as any)?.message?.chat?.id ||
+      (ctx.update as any)?.callback_query?.message?.chat?.id;
+
+    const records = await this.chatProvider.getRecords(
+      chatId,
+      context._id.toString(),
+    );
+
+    const constraintPrompt =
+      'Пример не должен быть одним из списка: ' + records.join('.\n');
+
     const result = await this.openRouterProvider.sendMessage(
       context.promptQuestion,
+      [
+        {
+          text: constraintPrompt,
+          type: 'text',
+        },
+      ],
     );
 
     const clearedMessage = result.choices[0].message.content
@@ -215,6 +236,10 @@ export class TrainerProvider {
     try {
       const parsedMessage: { title: string; text: string } =
         JSON.parse(clearedMessage);
+
+      await this.chatProvider.addRecord(chatId, context._id.toString(), {
+        answer: parsedMessage.text,
+      });
 
       await ctx.reply(`${parsedMessage.text.trim()}
     `);
@@ -232,7 +257,7 @@ export class TrainerProvider {
             ],
           ],
         },
-      },);
+      });
     }
   }
 }
