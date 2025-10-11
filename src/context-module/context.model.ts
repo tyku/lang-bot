@@ -20,9 +20,12 @@ export class Context {
   @Prop()
   promptRule: string;
 
+  @Prop()
+  rule: string;
+
   @Prop({ default: true })
   isActive: boolean;
 }
 
 export const ContextSchema = SchemaFactory.createForClass(Context);
-ContextSchema.index({ chatId: 1 }, { unique: true });
+ContextSchema.index({ alias: 1 }, { unique: true });

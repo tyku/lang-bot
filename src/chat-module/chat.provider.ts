@@ -27,7 +27,7 @@ export class ChatProvider {
       .exec();
 
     if (records) {
-      return records.content.map(({ answer }) => answer);
+      return records.content.map(({ question }) => question);
     }
 
     return [];

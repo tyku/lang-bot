@@ -11,9 +11,6 @@ export class Chat {
   @Prop({ required: true })
   contextId: string;
 
-  @Prop({ required: true })
-  contextAlias: string;
-
   @Prop()
   content: { question: string; answer: string }[];
 
@@ -22,4 +19,4 @@ export class Chat {
 }
 
 export const ChatSchema = SchemaFactory.createForClass(Chat);
-ChatSchema.index({ chatId: 1 }, { unique: true });
+ChatSchema.index({ chatId: 1, contextId: 1 }, { unique: true });

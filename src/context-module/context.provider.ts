@@ -14,4 +14,8 @@ export class ContextProvider {
   getOneByAlias(alias: string) {
     return this.contextRepo.findOne({ alias, isActive: true }).lean().exec();
   }
+
+  updateOne(filter: Record<string, any>, update: Record<string, any>) {
+    return this.contextRepo.updateOne(filter, update).lean().exec();
+  }
 }

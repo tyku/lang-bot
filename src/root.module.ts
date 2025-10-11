@@ -8,6 +8,22 @@ import configs from './configs';
 import { TelegramModule } from './telegram-module/telegram.module';
 import { LoggerModule } from './logger-module/logger.module';
 import { ServicesModule } from './services/services.module';
+import Redis from 'ioredis';
+
+function createRedisStore(redis: Redis, ttl = 86400) {
+  return {
+    async get(key: string) {
+      const data = await redis.get(key);
+      return data ? JSON.parse(data) : undefined;
+    },
+    async set(key: string, value: any) {
+      await redis.set(key, JSON.stringify(value), 'EX', ttl);
+    },
+    async delete(key: string) {
+      await redis.del(key);
+    },
+  };
+}
 
 @Module({
   imports: [
@@ -18,12 +34,38 @@ import { ServicesModule } from './services/services.module';
     }),
     TelegrafModule.forRootAsync({
       imports: [TelegramModule],
-      useFactory: (configService: ConfigService) => ({
-        botName: 'proj-eng',
-        token: configService.get<string>('telegram.botAccessToken')!,
-        middlewares: [session()],
-        include: [TelegramModule],
-      }),
+      useFactory: (configService: ConfigService) => {
+        const redisHost = configService.get<string>('redis.host')!;
+        const redisPort = configService.get<number>('redis.port')!;
+        const redisPassword = configService.get<string>('redis.password')!;
+
+        const redis = new Redis({
+          host: redisHost || 'localhost',
+          port: redisPort,
+          password: redisPassword,
+        });
+
+        return {
+          botName: 'proj-eng',
+          token: configService.get<string>('telegram.botAccessToken')!,
+          middlewares: [
+            // session(),
+            session({ store: createRedisStore(redis) }),
+            async (ctx, next) => {
+              if (ctx.update.message?.text === '/start') {
+                if (ctx.scene && typeof ctx.scene.leave === 'function') {
+                  await ctx.scene.leave();
+                }
+                if (ctx.session && ctx.session.__scenes) {
+                  delete ctx.session.__scenes;
+                }
+              }
+              return next();
+            },
+          ],
+          include: [TelegramModule],
+        };
+      },
       inject: [ConfigService],
     }),
     MongooseModule.forRootAsync({

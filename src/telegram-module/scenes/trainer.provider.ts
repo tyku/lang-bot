@@ -7,37 +7,27 @@ import { LoggerProvider } from '../../logger-module/logger.provider';
 
 import type { TMessageType } from '../types/message';
 import { ChatProvider } from '../../chat-module/chat.provider';
-import { Chat } from '@telegraf/types';
 import { TMessageData } from '../../services/types';
 
-const readyText = [
-  '🤓 Хочу узнать, как это предложение звучит по-английски!',
-  '🌍 Переведи это предложение на английский',
-  '📚 Переводим предложение на английский вместе!',
-  '🧠 Эй, переведи эту фразу на инглиш, плиз!',
-  '🤙 Йо, закинь мне перевод на английский, окей?',
-  '📚 Что там по переводу на English?',
-  '📲 Скинь, как это будет по-английски, интересно же! 😜',
-  '💭 Как это по-английски будет звучать? Переведи, плиз 🙏',
-];
+function prepareText(result: any) {
+  const arrayText = result.choices[0].message.content
+    .replace('```json', '')
+    .replace('```', '');
 
-function getRandomElement(arr: string[]) {
-  if (!Array.isArray(arr) || arr.length === 0) {
-    throw new Error('Нужно передать непустой массив!');
-  }
-  const randomIndex = Math.floor(Math.random() * arr.length);
-  return arr[randomIndex];
-}
+  return JSON.parse(arrayText)
+    .reduce((acc, item) => {
+      const { title, description } = item;
 
-function getStatus(status: string) {
-  switch (status) {
-    case 'excellent':
-      return '🤟🤟🤟';
-    case 'good':
-      return '😉😉😉';
-    case 'bad':
-      return '🤨🤨🤨';
-  }
+      acc += `*${title}*\n\n${description}\n\n`;
+
+      return acc;
+    }, '')
+    .replaceAll('(', '\\(')
+    .replaceAll(')', '\\)')
+    .replaceAll('.', '\\.')
+    .replaceAll('+', '\\+')
+    .replaceAll('!', '\\!')
+    .replaceAll('-', '\\-');
 }
 
 @Scene('TRAINER_SCENE_ID')
@@ -51,6 +41,14 @@ export class TrainerProvider {
 
   @SceneEnter()
   async onSceneEnter(@Ctx() ctx: Scenes.SceneContext) {
+    await ctx.replyWithMarkdownV2('🎛️', {
+      reply_markup: {
+        keyboard: [[{ text: '📚️ Меню' }]],
+        resize_keyboard: true,
+        one_time_keyboard: false,
+      },
+    });
+
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-expect-error
     const { contextName } = ctx.scene.state;
@@ -66,45 +64,43 @@ export class TrainerProvider {
     }
 
     const awaitingMessage = await ctx.reply(
-      'Пару мгновений, готовлю краткую справку️ ⏱️',
+      'Пару мгновений, готовлю краткую справку️ ⏱️⏱️⏱️',
     );
 
-    const result = await this.openRouterProvider.sendMessage(
-      context.promptRule,
-    );
+    let rule: string = context.rule;
 
-    const arrayText = result.choices[0].message.content
-      .replace('```json', '')
-      .replace('```', '');
+    if (!context.rule) {
+      const result = await this.openRouterProvider.sendMessage(
+        context.promptRule,
+      );
 
-    const preparedText = JSON.parse(arrayText)
-      .reduce((acc, item) => {
-        const { title, description } = item;
+      rule = prepareText(result);
 
-        acc += `*${title}*\n\n${description}\n\n`;
-
-        return acc;
-      }, '')
-      .replaceAll('(', '\\(')
-      .replaceAll(')', '\\)')
-      .replaceAll('.', '\\.')
-      .replaceAll('+', '\\+')
-      .replaceAll('-', '\\-');
+      await this.contextProvider.updateOne({ _id: context._id }, { rule });
+    }
 
     await ctx.deleteMessage(awaitingMessage.message_id);
 
-    await ctx.replyWithMarkdownV2(preparedText, {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            {
-              text: '✅ Начем?',
-              callback_data: 'get_exercise',
-            },
+    await ctx.replyWithMarkdownV2(rule);
+
+    await ctx.replyWithMarkdownV2(
+      'Я \\- ИИ тренажер 🤓\n' +
+        'Буду присылать Вам сообщение на русском языке\n' +
+        `Ваша задача перевести предложение в соотвествие с темой *"${context.name}"*\\.\n` +
+        'Удачи\\!',
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: '✅ Начем?',
+                callback_data: 'get_exercise',
+              },
+            ],
           ],
-        ],
+        },
       },
-    });
+    );
   }
 
   @On('text')
@@ -122,11 +118,14 @@ export class TrainerProvider {
       throw new Error(`Context not found: ${contextName}`);
     }
 
-    const chatId =
+    const chatId: number =
       (ctx.update as any)?.message?.chat?.id ||
       (ctx.update as any)?.callback_query?.message?.chat?.id;
 
-    const record = await this.chatProvider.getLastQuestion(chatId, context._id.toString());
+    const record = await this.chatProvider.getLastQuestion(
+      chatId,
+      context._id.toString(),
+    );
 
     const messageData: TMessageData[] = [];
 
@@ -223,7 +222,7 @@ export class TrainerProvider {
       throw new Error(`Context not found: ${contextName}`);
     }
 
-    const chatId =
+    const chatId: number =
       (ctx.update as any)?.message?.chat?.id ||
       (ctx.update as any)?.callback_query?.message?.chat?.id;
 
@@ -254,11 +253,10 @@ export class TrainerProvider {
         JSON.parse(clearedMessage);
 
       await this.chatProvider.addRecord(chatId, context._id.toString(), {
-        answer: parsedMessage.text,
+        question: parsedMessage.text,
       });
 
-      await ctx.reply(`${parsedMessage.text.trim()}
-    `);
+      await ctx.reply(`${parsedMessage.text.trim()}`);
     } catch (e) {
       this.logger.error(`${this.constructor.name} onTrainer: ${e}`);
 

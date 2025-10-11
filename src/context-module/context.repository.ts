@@ -1,4 +1,10 @@
-import { FilterQuery, Model, ProjectionType, QueryOptions } from 'mongoose';
+import {
+  FilterQuery,
+  Model,
+  ProjectionType,
+  QueryOptions,
+  UpdateQuery,
+} from 'mongoose';
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Context, ContextDocument } from './context.model';
@@ -21,5 +27,13 @@ export class ContextRepository {
     options?: QueryOptions<ContextDocument>,
   ) {
     return this.model.findOne<ContextDocument>(filter, projection, options);
+  }
+
+  updateOne(
+    filter: FilterQuery<ContextDocument> = {},
+    update: UpdateQuery<ContextDocument>,
+    options?: any, //@todo уточнить тип
+  ) {
+    return this.model.updateOne<ContextDocument>(filter, update, options);
   }
 }

@@ -1,4 +1,4 @@
-import { Action, Command, Ctx, Start, Update } from 'nestjs-telegraf';
+import { Action, Command, Ctx, Hears, Start, Update } from 'nestjs-telegraf';
 import { Scenes } from 'telegraf';
 
 import { LoggerProvider } from '../logger-module/logger.provider';
@@ -14,13 +14,17 @@ export class TelegramUpdate {
   ): Promise<void> {
     await ctx.scene.leave();
 
-    await ctx.scene.enter('NEWUSER_SCENE_ID');
-  }
+    if (ctx.session) {
+      for (const key of Object.keys(ctx.session)) {
+        delete ctx.session[key];
+      }
+    }
 
-  @Command('scene')
-  async onSceneCommand(@Ctx() ctx: Scenes.SceneContext): Promise<void> {
-    await ctx.reply('hello');
-    await ctx.scene.enter('');
+    if (ctx.session?.__scenes) {
+      delete ctx.session.__scenes;
+    }
+
+    await ctx.scene.enter('NEWUSER_SCENE_ID');
   }
 
   @Action(/^trainer:.+$/)
@@ -38,6 +42,7 @@ export class TelegramUpdate {
 
     await ctx.scene.enter('TRAINER_SCENE_ID', { contextName: value });
   }
+
   //
   // @Action('withdraw')
   // async onWithdraw(@Ctx() ctx: SceneContext) {
@@ -114,11 +119,7 @@ export class TelegramUpdate {
   //   await ctx.scene.enter('DARTS_SCENE_ID');
   // }
   //
-  // @Hears('🎛️ Меню')
-  // async menuConstant(@Ctx() ctx: WizardContext) {
-  //   await ctx.scene.enter('MENU_SCENE_ID');
-  // }
-  //
+
   // @On('text')
   // async defaultAnswer(@Ctx() ctx: Context) {
   //   await ctx.reply('Такие команды я выполнять не умею 😀');
