@@ -120,8 +120,10 @@ export class TelegramUpdate {
   // }
   //
 
-  // @On('text')
-  // async defaultAnswer(@Ctx() ctx: Context) {
-  //   await ctx.reply('Такие команды я выполнять не умею 😀');
-  // }
+  @Hears('📚️ Меню')
+  async menu(@Ctx() ctx: Scenes.SceneContext) {
+    await ctx.scene.leave();
+
+    await ctx.scene.enter('MENU_SCENE_ID');
+  }
 }

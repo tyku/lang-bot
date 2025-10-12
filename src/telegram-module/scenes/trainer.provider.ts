@@ -1,4 +1,4 @@
-import { Scene, SceneEnter, Ctx, Action, On, Message } from 'nestjs-telegraf';
+import { Scene, SceneEnter, Ctx, Action, On, Message, Next } from 'nestjs-telegraf';
 import { Scenes } from 'telegraf';
 
 import { ContextProvider } from '../../context-module/context.provider';
@@ -106,8 +106,15 @@ export class TrainerProvider {
   @On('text')
   async answerAnswer(
     @Ctx() ctx: Scenes.SceneContext,
+    @Next() next: any,
     @Message('') message: TMessageType,
   ) {
+    if (message.text === '📚️ Меню') {
+      await next();
+
+      return;
+    }
+
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     const contextName = ctx.session.contextName;
@@ -132,14 +139,14 @@ export class TrainerProvider {
     if (record) {
       messageData.push({
         type: 'text',
-        text: `Предложение, которое нужно было первести: "${record.question}"`,
+        text: `Правильно ли выполнен перевод фразы: "${record.question}" на английский: ${message.text}?`,
+      });
+    } else {
+      messageData.push({
+        type: 'text',
+        text: message.text,
       });
     }
-
-    messageData.push({
-      type: 'text',
-      text: message.text,
-    });
 
     const result = await this.openRouterProvider.sendMessage(
       context.promptAnswer,

@@ -7,10 +7,12 @@ import { NewUserProvider } from './scenes/new-user.provider';
 import { UserModule } from '../user-module/user.module';
 import { ContextModule } from '../context-module/context.module';
 import { ChatModule } from '../chat-module/chat.module';
+import { MenuProvider } from './scenes/menu.provider';
 
 @Module({
   imports: [UserModule, ContextModule, ChatModule],
   providers: [
+    MenuProvider,
     TelegramUpdate,
     NewUserProvider,
     TrainerProvider,
