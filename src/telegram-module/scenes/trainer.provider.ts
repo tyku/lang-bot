@@ -1,5 +1,14 @@
-import { Scene, SceneEnter, Ctx, Action, On, Message, Next } from 'nestjs-telegraf';
+import {
+  Scene,
+  SceneEnter,
+  Ctx,
+  Action,
+  On,
+  Message,
+  Next,
+} from 'nestjs-telegraf';
 import { Scenes } from 'telegraf';
+import mongoose from 'mongoose';
 
 import { ContextProvider } from '../../context-module/context.provider';
 import { OpenRouterProvider } from '../../services/providers';
@@ -8,6 +17,7 @@ import { LoggerProvider } from '../../logger-module/logger.provider';
 import type { TMessageType } from '../types/message';
 import { ChatProvider } from '../../chat-module/chat.provider';
 import { TMessageData } from '../../services/types';
+import { Context } from '../../context-module/context.model';
 
 function prepareText(result: any) {
   const arrayText = result.choices[0].message.content
@@ -43,7 +53,7 @@ export class TrainerProvider {
   async onSceneEnter(@Ctx() ctx: Scenes.SceneContext) {
     await ctx.replyWithMarkdownV2('🎛️', {
       reply_markup: {
-        keyboard: [[{ text: '📚️ Меню' }]],
+        keyboard: [[{ text: '📱️Меню' }], [{ text: '📚 Теория' }]],
         resize_keyboard: true,
         one_time_keyboard: false,
       },
@@ -62,26 +72,6 @@ export class TrainerProvider {
     if (!context) {
       throw new Error(`Context not found: ${contextName}`);
     }
-
-    const awaitingMessage = await ctx.reply(
-      'Пару мгновений, готовлю краткую справку️ ⏱️⏱️⏱️',
-    );
-
-    let rule: string = context.rule;
-
-    if (!context.rule) {
-      const result = await this.openRouterProvider.sendMessage(
-        context.promptRule,
-      );
-
-      rule = prepareText(result);
-
-      await this.contextProvider.updateOne({ _id: context._id }, { rule });
-    }
-
-    await ctx.deleteMessage(awaitingMessage.message_id);
-
-    await ctx.replyWithMarkdownV2(rule);
 
     await ctx.replyWithMarkdownV2(
       'Я \\- ИИ тренажер 🤓\n' +
@@ -109,12 +99,6 @@ export class TrainerProvider {
     @Next() next: any,
     @Message('') message: TMessageType,
   ) {
-    if (message.text === '📚️ Меню') {
-      await next();
-
-      return;
-    }
-
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     const contextName = ctx.session.contextName;
@@ -123,6 +107,19 @@ export class TrainerProvider {
 
     if (!context) {
       throw new Error(`Context not found: ${contextName}`);
+    }
+
+    if (message.text === '📱️Меню') {
+      await next();
+
+      return;
+    }
+
+    if (message.text === '📚 Теория') {
+      await this.prepareRule(ctx, context);
+      await next();
+
+      return;
     }
 
     const chatId: number =
@@ -139,7 +136,7 @@ export class TrainerProvider {
     if (record) {
       messageData.push({
         type: 'text',
-        text: `Правильно ли выполнен перевод фразы: "${record.question}" на английский: ${message.text}?`,
+        text: `Правильно ли выполнен перевод фразы: "${record.question}" на английский: ${message.text}`,
       });
     } else {
       messageData.push({
@@ -280,5 +277,41 @@ export class TrainerProvider {
         },
       });
     }
+  }
+
+  private async prepareRule(
+    ctx: Scenes.SceneContext,
+    context: Context & { _id: mongoose.Types.ObjectId },
+  ) {
+    const awaitingMessage = await ctx.reply(
+      'Пару мгновений, готовлю краткую справку️ ⏱️⏱️⏱️',
+    );
+
+    let rule: string = context.rule;
+
+    if (!context.rule) {
+      const result = await this.openRouterProvider.sendMessage(
+        context.promptRule,
+      );
+
+      rule = prepareText(result);
+
+      await this.contextProvider.updateOne({ _id: context._id }, { rule });
+    }
+
+    await ctx.deleteMessage(awaitingMessage.message_id);
+
+    await ctx.replyWithMarkdownV2(rule, {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: 'Новое предложение?',
+              callback_data: 'get_exercise',
+            },
+          ],
+        ],
+      },
+    });
   }
 }
