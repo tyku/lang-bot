@@ -10,10 +10,11 @@ export class ChatRepository {
   addContentOrCreate(
     chatId: number,
     contextId: string,
+    exerciseId: string,
     data: Partial<{ question: string; answer: string }>,
   ) {
     return this.model.findOneAndUpdate(
-      { chatId, contextId },
+      { chatId, contextId, exerciseId },
       {
         $push: {
           content: {

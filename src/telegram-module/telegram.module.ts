@@ -8,9 +8,10 @@ import { UserModule } from '../user-module/user.module';
 import { ContextModule } from '../context-module/context.module';
 import { ChatModule } from '../chat-module/chat.module';
 import { MenuProvider } from './scenes/menu.provider';
+import { ExercisesModule } from '../exercises-module/exercises.module';
 
 @Module({
-  imports: [UserModule, ContextModule, ChatModule],
+  imports: [UserModule, ContextModule, ChatModule, ExercisesModule],
   providers: [
     MenuProvider,
     TelegramUpdate,

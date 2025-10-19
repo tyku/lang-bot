@@ -8,6 +8,7 @@ export class ChatProvider {
   addRecord(
     chatId: number,
     contextId: string,
+    exerciseId: string,
     data: Partial<{ question: string; answer: string }>,
   ) {
     if (!Object.keys(data).length) {
@@ -15,14 +16,14 @@ export class ChatProvider {
     }
 
     return this.chatRepo
-      .addContentOrCreate(chatId, contextId, data)
+      .addContentOrCreate(chatId, contextId, exerciseId, data)
       .lean()
       .exec();
   }
 
-  async getRecords(chatId: number, contextId: string) {
+  async getRecords(chatId: number, contextId: string, exerciseId: string) {
     const records = await this.chatRepo
-      .findOne({ chatId, contextId }, { content: 1 })
+      .findOne({ chatId, contextId, exerciseId }, { content: 1 })
       .lean()
       .exec();
 
@@ -33,9 +34,9 @@ export class ChatProvider {
     return [];
   }
 
-  async getLastQuestion(chatId: number, contextId: string) {
+  async getLastQuestion(chatId: number, contextId: string, exerciseId: string) {
     const record = await this.chatRepo
-      .findOne({ chatId, contextId }, { content: { $slice: -1 } })
+      .findOne({ chatId, contextId, exerciseId }, { content: { $slice: -1 } })
       .lean()
       .exec();
 

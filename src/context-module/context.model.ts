@@ -14,14 +14,17 @@ export class Context {
   @Prop({ required: true })
   promptQuestion: string;
 
-  @Prop({ required: true })
-  promptAnswer: string;
+  // @Prop({ required: true })
+  // promptAnswer: string;
 
   @Prop()
   promptRule: string;
 
   @Prop()
   rule: string;
+
+  @Prop()
+  exercises: string[];
 
   @Prop({ default: true })
   isActive: boolean;

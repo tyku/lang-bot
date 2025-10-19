@@ -18,6 +18,7 @@ import type { TMessageType } from '../types/message';
 import { ChatProvider } from '../../chat-module/chat.provider';
 import { TMessageData } from '../../services/types';
 import { Context } from '../../context-module/context.model';
+import { ExercisesProvider } from '../../exercises-module/exercises.provider';
 
 function prepareText(result: any) {
   const arrayText = result.choices[0].message.content
@@ -44,6 +45,7 @@ function prepareText(result: any) {
 export class TrainerProvider {
   constructor(
     private contextProvider: ContextProvider,
+    private exercisesProvider: ExercisesProvider,
     private chatProvider: ChatProvider,
     private openRouterProvider: OpenRouterProvider,
     private logger: LoggerProvider,
@@ -70,27 +72,41 @@ export class TrainerProvider {
     const context = await this.contextProvider.getOneByAlias(contextName);
 
     if (!context) {
-      throw new Error(`Context not found: ${contextName}`);
+      await ctx.reply('Не удалось загрузить тему 😞');
+
+      await ctx.scene.leave();
+      await ctx.scene.enter('MENU_SCENE_ID');
+
+      return;
     }
 
-    await ctx.replyWithMarkdownV2(
-      'Я \\- ИИ тренажер 🤓\n' +
-        'Буду присылать Вам сообщение на русском языке\n' +
-        `Ваша задача перевести предложение в соотвествие с темой *"${context.name}"*\\.\n` +
-        'Удачи\\!',
-      {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: '✅ Начем?',
-                callback_data: 'get_exercise',
-              },
-            ],
-          ],
-        },
-      },
+    const exercises = await this.exercisesProvider.getByCodes(
+      context.exercises,
     );
+
+    const exercisesButtons = exercises.map(({ name, alias }) => {
+      return [
+        {
+          text: name,
+          callback_data: `set_exercise:${alias}`,
+        },
+      ];
+    });
+
+    if (!exercisesButtons.length) {
+      await ctx.reply('Не удалось загрузить тему 😞');
+
+      await ctx.scene.leave();
+      await ctx.scene.enter('MENU_SCENE_ID');
+
+      return;
+    }
+
+    await ctx.replyWithMarkdownV2('Выберите тип упражнения', {
+      reply_markup: {
+        inline_keyboard: exercisesButtons,
+      },
+    });
   }
 
   @On('text')
@@ -102,6 +118,9 @@ export class TrainerProvider {
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     const contextName = ctx.session.contextName;
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    const exerciseType = ctx.session.exerciseType;
 
     const context = await this.contextProvider.getOneByAlias(contextName);
 
@@ -126,35 +145,42 @@ export class TrainerProvider {
       (ctx.update as any)?.message?.chat?.id ||
       (ctx.update as any)?.callback_query?.message?.chat?.id;
 
-    const record = await this.chatProvider.getLastQuestion(
-      chatId,
-      context._id.toString(),
-    );
-
-    const messageData: TMessageData[] = [];
-
-    if (record) {
-      messageData.push({
-        type: 'text',
-        text: `Правильно ли выполнен перевод фразы: "${record.question}" на английский: ${message.text}`,
-      });
-    } else {
-      messageData.push({
-        type: 'text',
-        text: message.text,
-      });
-    }
-
-    const result = await this.openRouterProvider.sendMessage(
-      context.promptAnswer,
-      messageData,
-    );
-
-    const clearedMessage = result.choices[0].message.content
-      .replace('```json', '')
-      .replace('```', '');
-
     try {
+      const exercise = await this.exercisesProvider.getOneByAlias(exerciseType);
+
+      if (!exercise) {
+        throw new Error(`Exercise not found (alias=${exerciseType})`);
+      }
+
+      const record = await this.chatProvider.getLastQuestion(
+        chatId,
+        context._id.toString(),
+        exercise._id.toString(),
+      );
+
+      const messageData: TMessageData[] = [];
+
+      if (record) {
+        messageData.push({
+          type: 'text',
+          text: JSON.stringify({ text: record.question, answer: message.text }),
+        });
+      } else {
+        messageData.push({
+          type: 'text',
+          text: message.text,
+        });
+      }
+
+      const result = await this.openRouterProvider.sendMessage(
+        context.promptQuestion + ' ' + exercise.promptAnswer,
+        messageData,
+      );
+
+      const clearedMessage = result.choices[0].message.content
+        .replace('```json', '')
+        .replace('```', '');
+
       const parsedMessage: { title: string; description: string } =
         JSON.parse(clearedMessage);
 
@@ -198,6 +224,46 @@ export class TrainerProvider {
     }
   }
 
+  @Action(/^set_exercise(?::\w+)?$/)
+  async onExercise(
+    @Ctx() ctx: Scenes.SceneContext & { update: { callback_query: any } },
+  ) {
+    try {
+      await ctx.editMessageReplyMarkup(undefined);
+    } catch (e) {}
+
+    const action = ctx.update.callback_query?.data;
+    const value = action.split(':')[1];
+
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    ctx.session.exerciseType = value;
+
+    const exercise = await this.exercisesProvider.getOneByAlias(value);
+
+    if (!exercise) {
+      await ctx.reply('Не удалось загрузить тему 😞');
+
+      await ctx.scene.leave();
+      await ctx.scene.enter('MENU_SCENE_ID');
+
+      return;
+    }
+
+    await ctx.reply('Окей, тема выбрана.\n\n' + exercise.description, {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: '✅ Начем?',
+              callback_data: 'get_exercise',
+            },
+          ],
+        ],
+      },
+    });
+  }
+
   @Action(/^get_exercise(?::\w+)?$/)
   async onTrainer(
     @Ctx() ctx: Scenes.SceneContext & { update: { callback_query: any } },
@@ -220,10 +286,25 @@ export class TrainerProvider {
     // @ts-ignore
     const contextName = ctx.session.contextName;
 
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    const exerciseType = ctx.session.exerciseType;
+
     const context = await this.contextProvider.getOneByAlias(contextName);
 
     if (!context) {
       throw new Error(`Context not found: ${contextName}`);
+    }
+
+    const exercise = await this.exercisesProvider.getOneByAlias(exerciseType);
+
+    if (!exercise) {
+      await ctx.reply('Не удалось загрузить тему 😞');
+
+      await ctx.scene.leave();
+      await ctx.scene.enter('MENU_SCENE_ID');
+
+      return;
     }
 
     const chatId: number =
@@ -233,13 +314,14 @@ export class TrainerProvider {
     const records = await this.chatProvider.getRecords(
       chatId,
       context._id.toString(),
+      exercise._id.toString(),
     );
 
     const constraintPrompt =
       'Пример не должен быть одним из списка: ' + records.join('.\n');
 
     const result = await this.openRouterProvider.sendMessage(
-      context.promptQuestion,
+      context.promptQuestion + ' ' + exercise.promptQuestion,
       [
         {
           text: constraintPrompt,
@@ -255,10 +337,16 @@ export class TrainerProvider {
     try {
       const parsedMessage: { title: string; text: string } =
         JSON.parse(clearedMessage);
+      console.log('==================******==123', parsedMessage);
 
-      await this.chatProvider.addRecord(chatId, context._id.toString(), {
-        question: parsedMessage.text,
-      });
+      await this.chatProvider.addRecord(
+        chatId,
+        context._id.toString(),
+        exercise._id.toString(),
+        {
+          question: parsedMessage.text,
+        },
+      );
 
       await ctx.reply(`${parsedMessage.text.trim()}`);
     } catch (e) {

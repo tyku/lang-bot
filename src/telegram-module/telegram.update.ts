@@ -1,4 +1,4 @@
-import { Action, Command, Ctx, Hears, Start, Update } from 'nestjs-telegraf';
+import { Action, Ctx, Hears, Start, Update } from 'nestjs-telegraf';
 import { Scenes } from 'telegraf';
 
 import { LoggerProvider } from '../logger-module/logger.provider';
@@ -120,8 +120,13 @@ export class TelegramUpdate {
   // }
   //
 
-  @Hears('📚️ Меню')
+  @Hears('📱️Меню')
   async menu(@Ctx() ctx: Scenes.SceneContext) {
+    await ctx.reply('👌', {
+      reply_markup: {
+        remove_keyboard: true,
+      },
+    });
     await ctx.scene.leave();
 
     await ctx.scene.enter('MENU_SCENE_ID');
