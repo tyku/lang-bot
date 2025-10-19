@@ -20,9 +20,14 @@ export class MenuProvider {
     const activeContexts = await this.contextProvider.getAllActive([
       'name',
       'alias',
+      'order',
     ]);
 
-    const menuButtons = activeContexts.reduce((acc, item) => {
+    const sortedContext = activeContexts.sort(
+      (contextA, contextB) => contextA.order - contextB.order,
+    );
+
+    const menuButtons = sortedContext.reduce((acc, item) => {
       const { name, alias } = item;
 
       const button = {

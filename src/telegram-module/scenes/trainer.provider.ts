@@ -19,6 +19,7 @@ import { ChatProvider } from '../../chat-module/chat.provider';
 import { TMessageData } from '../../services/types';
 import { Context } from '../../context-module/context.model';
 import { ExercisesProvider } from '../../exercises-module/exercises.provider';
+import { InlineKeyboardButton } from '@telegraf/types';
 
 function prepareText(result: any) {
   const arrayText = result.choices[0].message.content
@@ -84,14 +85,25 @@ export class TrainerProvider {
       context.exercises,
     );
 
-    const exercisesButtons = exercises.map(({ name, alias }) => {
-      return [
-        {
-          text: name,
-          callback_data: `set_exercise:${alias}`,
-        },
-      ];
-    });
+    const exercisesButtons: InlineKeyboardButton[][] = [];
+
+    for (let i = 0; i < exercises.length; i += 2) {
+      const row: InlineKeyboardButton[] = [];
+
+      row.push({
+        text: exercises[i].name,
+        callback_data: `set_exercise:${exercises[i].alias}`,
+      });
+
+      if (exercises[i + 1]) {
+        row.push({
+          text: exercises[i + 1].name,
+          callback_data: `set_exercise:${exercises[i + 1].alias}`,
+        });
+      }
+
+      exercisesButtons.push(row);
+    }
 
     if (!exercisesButtons.length) {
       await ctx.reply('Не удалось загрузить тему 😞');
@@ -337,7 +349,6 @@ export class TrainerProvider {
     try {
       const parsedMessage: { title: string; text: string } =
         JSON.parse(clearedMessage);
-      console.log('==================******==123', parsedMessage);
 
       await this.chatProvider.addRecord(
         chatId,

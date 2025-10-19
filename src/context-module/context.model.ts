@@ -14,6 +14,9 @@ export class Context {
   @Prop({ required: true })
   promptQuestion: string;
 
+  @Prop({ default: 0 })
+  order: number;
+
   // @Prop({ required: true })
   // promptAnswer: string;
 
