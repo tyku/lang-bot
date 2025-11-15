@@ -20,6 +20,7 @@ import { TMessageData } from '../../services/types';
 import { Context } from '../../context-module/context.model';
 import { ExercisesProvider } from '../../exercises-module/exercises.provider';
 import { InlineKeyboardButton } from '@telegraf/types';
+import { SubscriptionProvider } from '../../subscription-module/subscription.provider';
 
 function prepareText(result: any) {
   const arrayText = result.choices[0].message.content
@@ -47,6 +48,7 @@ export class TrainerProvider {
   constructor(
     private contextProvider: ContextProvider,
     private exercisesProvider: ExercisesProvider,
+    private subscritionProvider: SubscriptionProvider,
     private chatProvider: ChatProvider,
     private openRouterProvider: OpenRouterProvider,
     private logger: LoggerProvider,
@@ -77,6 +79,20 @@ export class TrainerProvider {
 
       await ctx.scene.leave();
       await ctx.scene.enter('MENU_SCENE_ID');
+
+      return;
+    }
+
+    const chatId: number =
+      (ctx.update as any)?.message?.chat?.id ||
+      (ctx.update as any)?.callback_query?.message?.chat?.id;
+
+    const hasActiveSubscription =
+      await this.subscritionProvider.hasActiveSubscription(chatId);
+
+    if (!hasActiveSubscription && !context.isFree) {
+      await ctx.scene.leave();
+      await ctx.scene.enter('PAYMENT_SCENE_ID');
 
       return;
     }

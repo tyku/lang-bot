@@ -2,15 +2,21 @@ import { Action, Ctx, Hears, Start, Update } from 'nestjs-telegraf';
 import { Scenes } from 'telegraf';
 
 import { LoggerProvider } from '../logger-module/logger.provider';
+import { SubscriptionProvider } from '../subscription-module/subscription.provider';
+import { ESubscriptionType } from '../subscription-module/constants/types';
+import { getScene } from './libs/scenes';
 
 @Update()
 export class TelegramUpdate {
-  constructor(private logger: LoggerProvider) {}
+  constructor(
+    private logger: LoggerProvider,
+    private subscriptionProvider: SubscriptionProvider,
+  ) {}
 
   @Start()
   async onStart(
     @Ctx()
-    ctx: Scenes.SceneContext,
+    ctx: Scenes.SceneContext & { startPayload: Record<string, any> },
   ): Promise<void> {
     await ctx.scene.leave();
 
@@ -25,6 +31,15 @@ export class TelegramUpdate {
     }
 
     await ctx.scene.enter('NEWUSER_SCENE_ID');
+  }
+
+  @Action('promo_code')
+  async onPromocode(@Ctx() ctx: Scenes.SceneContext) {
+    try {
+      await ctx.scene.leave();
+    } catch (e) {}
+
+    await ctx.scene.enter('PROMOCODE_SCENE_ID');
   }
 
   @Action(/^trainer:.+$/)

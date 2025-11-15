@@ -47,6 +47,13 @@ export class MenuProvider {
             ...menuButtons,
             [
               {
+                text: '🈹 Промокод',
+                callback_data: 'promo_code',
+              },
+              // { text: '🤝 Реферальная система', callback_data: 'referral' },
+            ],
+            [
+              {
                 text: '📬 Поддержка',
                 url: 'https://t.me/RabbitHole_support',
               },

@@ -14,11 +14,8 @@ export class Context {
   @Prop({ required: true })
   promptQuestion: string;
 
-  @Prop({ default: 0 })
+  @Prop({ default: 1 })
   order: number;
-
-  // @Prop({ required: true })
-  // promptAnswer: string;
 
   @Prop()
   promptRule: string;
@@ -28,6 +25,9 @@ export class Context {
 
   @Prop()
   exercises: string[];
+
+  @Prop({ default: false })
+  isFree: boolean;
 
   @Prop({ default: true })
   isActive: boolean;
