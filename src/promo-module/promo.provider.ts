@@ -11,8 +11,18 @@ export class PromoProvider {
   }
 
   getPromoByCode(code: string) {
+    const now = new Date();
+    
     return this.promoRepo
-      .findOne({ code, expiresAt: { $gte: new Date() } })
+      .findOne({
+        code,
+        $or: [
+          { expiresAt: { $exists: false } },
+          { expiresAt: null },
+          { expiresAt: { $gte: now } },
+          { $expr: { $gte: [{ $toDate: '$expiresAt' }, now] } },
+        ],
+      })
       .lean()
       .exec();
   }

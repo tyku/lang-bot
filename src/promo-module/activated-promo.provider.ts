@@ -30,6 +30,7 @@ export class ActivatedPromoProvider {
 
   async tryActivate(chatId: number, code: string): Promise<Promo | null> {
     const promo = await this.promoRepo.getPromoByCode(code);
+    console.log('=======================123', promo);
 
     if (!promo) {
       return null;
@@ -46,7 +47,7 @@ export class ActivatedPromoProvider {
     }
 
     const hasActive = await this.subscriptionProvide.hasActiveSubscription(chatId);
-console.log('=======================', hasActive);
+
     if (hasActive) {
       return null;
     }
@@ -55,8 +56,9 @@ console.log('=======================', hasActive);
     const plusDays = new Date(now);
 
     plusDays.setDate(now.getDate() + promo.data.days);
+    plusDays.setUTCHours(23, 59, 59, 999);
 
-    await this.subscriptionProvide.createOrUpdate(
+    const result = await this.subscriptionProvide.createOrUpdate(
       { chatId },
       {
         type: ESubscriptionType.GIFT,
