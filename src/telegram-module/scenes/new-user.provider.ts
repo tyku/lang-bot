@@ -49,12 +49,14 @@ export class NewUserProvider {
       return;
     }
 
-    await ctx.replyWithMarkdownV2(
-      '🤖 В честь нашего знакомства *неделя* бесплатного доступа ко всем темам \n' +
-        'Но даже без подписки тебе *доступны* тренажеры *по двум темам* ✨',
-    );
+    const promo = await this.activatedPromoProvider.tryActivate(chatId, 'welcome');
 
-    await this.activatedPromoProvider.tryActivate(chatId, 'welcome');
+    if (promo) {
+      await ctx.replyWithMarkdownV2(
+        '🤖 В честь нашего знакомства *неделя* бесплатного доступа ко всем темам \n' +
+          'Но даже без подписки тебе *доступны* тренажеры *по двум темам* ✨',
+      );
+    }
   }
 
   private async renderMenu(ctx: Scenes.SceneContext, user: string) {

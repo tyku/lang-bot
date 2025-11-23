@@ -135,7 +135,7 @@ export class TelegramUpdate {
   // }
   //
 
-  @Hears('📱️Меню')
+  @Hears('📱️ Меню')
   async menu(@Ctx() ctx: Scenes.SceneContext) {
     await ctx.reply('👌', {
       reply_markup: {

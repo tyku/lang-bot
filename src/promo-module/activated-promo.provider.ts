@@ -30,7 +30,6 @@ export class ActivatedPromoProvider {
 
   async tryActivate(chatId: number, code: string): Promise<Promo | null> {
     const promo = await this.promoRepo.getPromoByCode(code);
-    console.log('=======================123', promo);
 
     if (!promo) {
       return null;

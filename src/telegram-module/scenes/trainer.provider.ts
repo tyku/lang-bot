@@ -14,33 +14,31 @@ import { ContextProvider } from '../../context-module/context.provider';
 import { OpenRouterProvider } from '../../services/providers';
 import { LoggerProvider } from '../../logger-module/logger.provider';
 
-import type { TMessageType } from '../types/message';
 import { ChatProvider } from '../../chat-module/chat.provider';
-import { TMessageData } from '../../services/types';
 import { Context } from '../../context-module/context.model';
 import { ExercisesProvider } from '../../exercises-module/exercises.provider';
-import { InlineKeyboardButton } from '@telegraf/types';
 import { SubscriptionProvider } from '../../subscription-module/subscription.provider';
+import { escapeText } from '../libs/text-format';
+
+import type { InlineKeyboardButton } from '@telegraf/types';
+import type { TMessageType } from '../types/message';
+import type { TMessageData } from '../../services/types';
 
 function prepareText(result: any) {
   const arrayText = result.choices[0].message.content
     .replace('```json', '')
     .replace('```', '');
 
-  return JSON.parse(arrayText)
+  const parsedText = JSON.parse(arrayText)
     .reduce((acc, item) => {
       const { title, description } = item;
 
       acc += `*${title}*\n\n${description}\n\n`;
 
       return acc;
-    }, '')
-    .replaceAll('(', '\\(')
-    .replaceAll(')', '\\)')
-    .replaceAll('.', '\\.')
-    .replaceAll('+', '\\+')
-    .replaceAll('!', '\\!')
-    .replaceAll('-', '\\-');
+    }, '');
+
+    return escapeText(parsedText);
 }
 
 @Scene('TRAINER_SCENE_ID')
@@ -58,19 +56,15 @@ export class TrainerProvider {
   async onSceneEnter(@Ctx() ctx: Scenes.SceneContext) {
     await ctx.replyWithMarkdownV2('🎛️', {
       reply_markup: {
-        keyboard: [[{ text: '📱️Меню' }], [{ text: '📚 Теория' }]],
+        keyboard: [[{ text: '📱️ Меню' }], [{ text: '📚 Теория' }]],
         resize_keyboard: true,
         one_time_keyboard: false,
       },
     });
 
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-expect-error
-    const { contextName } = ctx.scene.state;
+    const { contextName } = ctx.scene.state as any;
 
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    ctx.session.contextName = contextName;
+    (ctx.session as any).contextName = contextName;
 
     const context = await this.contextProvider.getOneByAlias(contextName);
 
@@ -97,66 +91,7 @@ export class TrainerProvider {
       return;
     }
 
-    const exercises = await this.exercisesProvider.getByCodes(
-      context.exercises,
-    );
-
-
-    if (!exercises.length) {
-      try {
-        await ctx.editMessageReplyMarkup(undefined);
-      } catch (e) {}
-
-      await ctx.reply('Окей, тема выбрана', {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: '✅ Начем?',
-                callback_data: 'get_exercise:delete',
-              },
-            ],
-          ],
-        },
-      });
-
-      return;
-    }
-    
-    const exercisesButtons: InlineKeyboardButton[][] = [];
-
-    for (let i = 0; i < exercises.length; i += 2) {
-      const row: InlineKeyboardButton[] = [];
-
-      row.push({
-        text: exercises[i].name,
-        callback_data: `set_exercise:${exercises[i].alias}`,
-      });
-
-      if (exercises[i + 1]) {
-        row.push({
-          text: exercises[i + 1].name,
-          callback_data: `set_exercise:${exercises[i + 1].alias}`,
-        });
-      }
-
-      exercisesButtons.push(row);
-    }
-
-    if (!exercisesButtons.length) {
-      await ctx.reply('Не удалось загрузить тему 😞');
-
-      await ctx.scene.leave();
-      await ctx.scene.enter('MENU_SCENE_ID');
-
-      return;
-    }
-
-    await ctx.replyWithMarkdownV2('Выберите тип упражнения', {
-      reply_markup: {
-        inline_keyboard: exercisesButtons,
-      },
-    });
+    await this.getExerciseMenuButtons(ctx, context);
   }
 
   @On('text')
@@ -165,12 +100,8 @@ export class TrainerProvider {
     @Next() next: any,
     @Message('') message: TMessageType,
   ) {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    const contextName = ctx.session.contextName;
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    const exerciseType = ctx.session.exerciseType;
+    const contextName = (ctx.session as any).contextName;
+    const exerciseType = (ctx.session as any).exerciseType;
 
     const context = await this.contextProvider.getOneByAlias(contextName);
 
@@ -178,7 +109,18 @@ export class TrainerProvider {
       throw new Error(`Context not found: ${contextName}`);
     }
 
-    if (message.text === '📱️Меню') {
+    if (message.text === '📱️ Меню') {
+      await next();
+
+      return;
+    }
+
+    if (message.text === '🤓 Выбрать упражнение') {
+      try {
+        await ctx.deleteMessage();
+      } catch (e) {}
+
+      await this.getExerciseMenuButtons(ctx, context);
       await next();
 
       return;
@@ -234,14 +176,8 @@ export class TrainerProvider {
       const parsedMessage: { title: string; description: string } =
         JSON.parse(clearedMessage);
 
-      const clearedDescription = parsedMessage.description
-        .replaceAll('(', '\\(')
-        .replaceAll(')', '\\)')
-        .replaceAll('.', '\\.')
-        .replaceAll('+', '\\+')
-        .replaceAll('-', '\\-')
-        .replaceAll('!', '\\!');
-
+      const clearedDescription = escapeText(parsedMessage.description);
+        
 
       await ctx.replyWithMarkdownV2(clearedDescription, {
         reply_markup: {
@@ -288,9 +224,7 @@ export class TrainerProvider {
     const action = ctx.update.callback_query?.data;
     const value = action.split(':')[1];
 
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    ctx.session.exerciseType = value;
+    (ctx.session as any).exerciseType = value;
 
     const exercise = await this.exercisesProvider.getOneByAlias(value);
 
@@ -303,6 +237,13 @@ export class TrainerProvider {
       return;
     }
 
+    await ctx.replyWithMarkdownV2('🎛️', {
+      reply_markup: {
+        keyboard: [[{ text: '🤓 Выбрать упражнение' }], [{ text: '📱️ Меню' }]],
+        resize_keyboard: true,
+        one_time_keyboard: false,
+      },
+    });
 
     if (exercise.modifications.length <= 1) {
       try {
@@ -359,13 +300,6 @@ export class TrainerProvider {
         inline_keyboard: modificationButtons,
       },
     });
-    // Удаляем предыдущие кнопки и показываем кнопки модификаторов
-    // try {
-      // await ctx.editMessageReplyMarkup(undefined);
-    // } catch (e) {
-      // this.logger.error(`${this.constructor.name} onExercise error11:`, e);
-      
-    // }
   }
 
   @Action(/^set_modification(?::\w+)?$/)
@@ -382,16 +316,7 @@ export class TrainerProvider {
     const action = ctx.update.callback_query?.data;
     const modification = action.split(':')[1];
 
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    ctx.session.modification = modification;
-
-    // Удаляем кнопки модификаторов
-    // try {
-      // await ctx.editMessageReplyMarkup(undefined);
-    // } catch (e) {}
-
-    // TODO: Добавить логику обработки выбранного модификатора
+    (ctx.session as any).modification = modification;
 
     await ctx.reply('Окей, тема выбрана', {
       reply_markup: {
@@ -425,13 +350,8 @@ export class TrainerProvider {
       this.logger.error(`${this.constructor.name} onTrainer error:`, e);
     }
 
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    const contextName = ctx.session.contextName;
-
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    const exerciseType = ctx.session.exerciseType;
+    const contextName = (ctx.session as any).contextName;
+    const exerciseType = (ctx.session as any).exerciseType;
 
     const context = await this.contextProvider.getOneByAlias(contextName);
 
@@ -463,8 +383,21 @@ export class TrainerProvider {
     const constraintPrompt =
       'Пример не должен быть одним из списка или похожим на него: ' + records.filter(Boolean).join(' \n ');
 
+    const modificationType = (ctx.session as any).modification;
+
+    let sentenceStyle = 'утвердительным, отрицательным или вопросительным';
+
+    if (modificationType === 'affirmative') {
+      sentenceStyle = 'утвердительное';
+    } else if (modificationType === 'negative') {
+      sentenceStyle = 'отрицательное';
+    } else if (modificationType === 'question') {
+      sentenceStyle = 'вопросительное';
+    }
+
+    const replacedPrompt = exercise.promptQuestion.replace('%replacement_1%', sentenceStyle);
     const result = await this.openRouterProvider.sendMessage(
-      context.promptQuestion + ' ' + exercise.promptQuestion,
+      context.promptQuestion + ' ' + replacedPrompt,
       [
         {
           text: constraintPrompt,
@@ -491,7 +424,6 @@ export class TrainerProvider {
         },
       );
 
-      console.log('--------------------------', parsedMessage);
       await ctx.reply(`${parsedMessage.text.trim()}\n\n ${parsedMessage.answer}`);
     } catch (e) {
       this.logger.error(`${this.constructor.name} onTrainer: ${e}`);
@@ -543,6 +475,68 @@ export class TrainerProvider {
             },
           ],
         ],
+      },
+    });
+  }
+
+  private async getExerciseMenuButtons(ctx: Scenes.SceneContext, context: Context & { _id: mongoose.Types.ObjectId }) {
+    const exercises = await this.exercisesProvider.getByCodes(
+      context.exercises,
+    );
+
+    if (!exercises.length) {
+      try {
+        await ctx.editMessageReplyMarkup(undefined);
+      } catch (e) {}
+
+      await ctx.reply('Окей, тема выбрана', {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: '✅ Начем?',
+                callback_data: 'get_exercise:delete',
+              },
+            ],
+          ],
+        },
+      });
+
+      return;
+    }
+    
+    const exercisesButtons: InlineKeyboardButton[][] = [];
+
+    for (let i = 0; i < exercises.length; i += 2) {
+      const row: InlineKeyboardButton[] = [];
+
+      row.push({
+        text: exercises[i].name,
+        callback_data: `set_exercise:${exercises[i].alias}`,
+      });
+
+      if (exercises[i + 1]) {
+        row.push({
+          text: exercises[i + 1].name,
+          callback_data: `set_exercise:${exercises[i + 1].alias}`,
+        });
+      }
+
+      exercisesButtons.push(row);
+    }
+
+    if (!exercisesButtons.length) {
+      await ctx.reply('Не удалось загрузить тему 😞');
+
+      await ctx.scene.leave();
+      await ctx.scene.enter('MENU_SCENE_ID');
+
+      return;
+    }
+
+    await ctx.replyWithMarkdownV2('Выберите тип упражнения', {
+      reply_markup: {
+        inline_keyboard: exercisesButtons,
       },
     });
   }
