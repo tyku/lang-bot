@@ -61,7 +61,7 @@ export class TrainerProvider {
         one_time_keyboard: false,
       },
     });
-
+    
     const { contextName } = ctx.scene.state as any;
 
     (ctx.session as any).contextName = contextName;
@@ -179,7 +179,7 @@ export class TrainerProvider {
       const clearedDescription = escapeText(parsedMessage.description);
         
 
-      await ctx.replyWithMarkdownV2(clearedDescription, {
+      const newSentence = await ctx.replyWithMarkdownV2(clearedDescription, {
         reply_markup: {
           inline_keyboard: [
             [

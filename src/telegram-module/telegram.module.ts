@@ -13,6 +13,7 @@ import { PromocodeProvider } from './scenes/promocode.provider';
 import { SubscriptionModule } from '../subscription-module/subscription.module';
 import { PromoModule } from '../promo-module/promo.module';
 import { PaymentProvider } from './scenes/payment.provider';
+import { MessageCleanerService } from './message-cleaner.service';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { PaymentProvider } from './scenes/payment.provider';
     // SubscriptionProvider,
     PaymentProvider,
     PromocodeProvider,
+    MessageCleanerService,
   ],
 })
 export class TelegramModule {}
