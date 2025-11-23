@@ -101,6 +101,28 @@ export class TrainerProvider {
       context.exercises,
     );
 
+
+    if (!exercises.length) {
+      try {
+        await ctx.editMessageReplyMarkup(undefined);
+      } catch (e) {}
+
+      await ctx.reply('Окей, тема выбрана', {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: '✅ Начем?',
+                callback_data: 'get_exercise:delete',
+              },
+            ],
+          ],
+        },
+      });
+
+      return;
+    }
+    
     const exercisesButtons: InlineKeyboardButton[][] = [];
 
     for (let i = 0; i < exercises.length; i += 2) {
@@ -191,7 +213,7 @@ export class TrainerProvider {
       if (record) {
         messageData.push({
           type: 'text',
-          text: JSON.stringify({ text: record.question, answer: message.text }),
+          text: JSON.stringify({ question: record.question, answer: message.text }),
         });
       } else {
         messageData.push({
@@ -217,7 +239,9 @@ export class TrainerProvider {
         .replaceAll(')', '\\)')
         .replaceAll('.', '\\.')
         .replaceAll('+', '\\+')
-        .replaceAll('-', '\\-');
+        .replaceAll('-', '\\-')
+        .replaceAll('!', '\\!');
+
 
       await ctx.replyWithMarkdownV2(clearedDescription, {
         reply_markup: {
@@ -235,7 +259,7 @@ export class TrainerProvider {
       this.logger.error(`${this.constructor.name} answerAnswer: ${e}`);
 
       await ctx.replyWithMarkdownV2(
-        'Я не понял ответ, давай попробуем другое предложение',
+        'Я не понял ответ, давай попробуем другое предложение1',
         {
           reply_markup: {
             inline_keyboard: [
@@ -256,8 +280,9 @@ export class TrainerProvider {
   async onExercise(
     @Ctx() ctx: Scenes.SceneContext & { update: { callback_query: any } },
   ) {
+
     try {
-      await ctx.editMessageReplyMarkup(undefined);
+      await ctx.deleteMessage(undefined);
     } catch (e) {}
 
     const action = ctx.update.callback_query?.data;
@@ -278,13 +303,103 @@ export class TrainerProvider {
       return;
     }
 
-    await ctx.reply('Окей, тема выбрана.\n\n' + exercise.description, {
+
+    if (exercise.modifications.length <= 1) {
+      try {
+        await ctx.editMessageReplyMarkup(undefined);
+      } catch (e) {}
+
+      await ctx.reply('Окей, тема выбрана.\n\n' + exercise.description, {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: '✅ Начем?',
+                callback_data: 'set_modification:none',
+              },
+            ],
+          ],
+        },
+      });
+
+      return;
+    }
+
+    // Создаем кнопки модификаторов
+    const modificationButtons: InlineKeyboardButton[][] = [];
+    const modificationLabels: Record<string, string> = {
+      affirmative: '✅ Утвердительное',
+      negative: '❌ Отрицательное',
+      question: '❓ Вопросительное',
+      none: '🔥 Все типы',
+    };
+
+    for (let i = 0; i < exercise.modifications.length; i += 2) {
+      const row: InlineKeyboardButton[] = [];
+
+      const mod1 = exercise.modifications[i];
+      row.push({
+        text: modificationLabels[mod1] || mod1,
+        callback_data: `set_modification:${mod1}`,
+      });
+
+      if (exercise.modifications[i + 1]) {
+        const mod2 = exercise.modifications[i + 1];
+        row.push({
+          text: modificationLabels[mod2] || mod2,
+          callback_data: `set_modification:${mod2}`,
+        });
+      }
+
+      modificationButtons.push(row);
+    }
+
+    await ctx.reply('Выберите модификатор', {
+      reply_markup: {
+        inline_keyboard: modificationButtons,
+      },
+    });
+    // Удаляем предыдущие кнопки и показываем кнопки модификаторов
+    // try {
+      // await ctx.editMessageReplyMarkup(undefined);
+    // } catch (e) {
+      // this.logger.error(`${this.constructor.name} onExercise error11:`, e);
+      
+    // }
+  }
+
+  @Action(/^set_modification(?::\w+)?$/)
+  async onModification(
+    @Ctx() ctx: Scenes.SceneContext & { update: { callback_query: any } },
+  ) {
+    try {
+      await ctx.deleteMessage();
+    } catch (e) {
+      this.logger.error(`${this.constructor.name} onModification error:`, e);
+    
+    }
+
+    const action = ctx.update.callback_query?.data;
+    const modification = action.split(':')[1];
+
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    ctx.session.modification = modification;
+
+    // Удаляем кнопки модификаторов
+    // try {
+      // await ctx.editMessageReplyMarkup(undefined);
+    // } catch (e) {}
+
+    // TODO: Добавить логику обработки выбранного модификатора
+
+    await ctx.reply('Окей, тема выбрана', {
       reply_markup: {
         inline_keyboard: [
           [
             {
               text: '✅ Начем?',
-              callback_data: 'get_exercise',
+              callback_data: 'get_exercise:delete',
             },
           ],
         ],
@@ -346,7 +461,7 @@ export class TrainerProvider {
     );
 
     const constraintPrompt =
-      'Пример не должен быть одним из списка: ' + records.join('.\n');
+      'Пример не должен быть одним из списка или похожим на него: ' + records.filter(Boolean).join(' \n ');
 
     const result = await this.openRouterProvider.sendMessage(
       context.promptQuestion + ' ' + exercise.promptQuestion,
@@ -363,7 +478,7 @@ export class TrainerProvider {
       .replace('```', '');
 
     try {
-      const parsedMessage: { title: string; text: string } =
+      const parsedMessage: { title: string; text: string, answer: string } =
         JSON.parse(clearedMessage);
 
       await this.chatProvider.addRecord(
@@ -372,14 +487,16 @@ export class TrainerProvider {
         exercise._id.toString(),
         {
           question: parsedMessage.text,
+          answer: parsedMessage.answer,
         },
       );
 
-      await ctx.reply(`${parsedMessage.text.trim()}`);
+      console.log('--------------------------', parsedMessage);
+      await ctx.reply(`${parsedMessage.text.trim()}\n\n ${parsedMessage.answer}`);
     } catch (e) {
       this.logger.error(`${this.constructor.name} onTrainer: ${e}`);
 
-      await ctx.reply('Я не понял ответ, давай попробуем другое предложение', {
+      await ctx.reply('Я не понял ответ, давай попробуем другое предложение2', {
         reply_markup: {
           inline_keyboard: [
             [

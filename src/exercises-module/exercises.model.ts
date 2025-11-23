@@ -11,8 +11,16 @@ export class Exercises {
   @Prop({ required: true })
   alias: string;
 
-  @Prop({ require: true })
+  @Prop({ required: true })
   description: string;
+
+  @Prop({ 
+    type: [String], 
+    required: true, 
+    default: ['affirmative'], 
+    enum: ['affirmative', 'negative', 'question'] 
+  })
+  modifications: string[];
 
   @Prop({ required: true })
   promptQuestion: string;
