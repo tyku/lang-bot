@@ -6,29 +6,37 @@ import { OPEN_ROUTER_PROVIDER_TOKEN } from '../constants';
 import type { TMessageData } from '../types';
 
 const GPT_4_MINI_MODEL = 'openai/gpt-4o-mini';
-
+const ACREE_AI_TRINITY_MINI_MODEL = 'arcee-ai/trinity-mini:free';
 @Injectable()
 export class OpenRouterProvider extends BaseService {
   protected providerName = OPEN_ROUTER_PROVIDER_TOKEN;
 
   sendMessage(prompt: string, data: TMessageData[] = []) {
+    const messages = [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: prompt,
+          },
+        ],
+      }
+    ]; 
+    
+    if (data.length) {
+      messages.push({
+        role: 'user',
+        content: data,
+      });
+    }
+
     return this.request(`/api/v1/chat/completions`, {
       method: 'POST',
       headers: this.getHeaders(),
       data: {
-        model: GPT_4_MINI_MODEL,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: prompt,
-              },
-              ...data,
-            ],
-          },
-        ],
+        model: ACREE_AI_TRINITY_MINI_MODEL,
+        messages,
       },
     });
   }

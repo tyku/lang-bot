@@ -1,6 +1,7 @@
 import {
   Scene,
   SceneEnter,
+  SceneLeave,
   Ctx,
   Action,
   On,
@@ -19,6 +20,7 @@ import { Context } from '../../context-module/context.model';
 import { ExercisesProvider } from '../../exercises-module/exercises.provider';
 import { SubscriptionProvider } from '../../subscription-module/subscription.provider';
 import { escapeText } from '../libs/text-format';
+import { MessageCleanerService } from '../message-cleaner.service';
 
 import type { InlineKeyboardButton } from '@telegraf/types';
 import type { TMessageType } from '../types/message';
@@ -50,8 +52,22 @@ export class TrainerProvider {
     private chatProvider: ChatProvider,
     private openRouterProvider: OpenRouterProvider,
     private logger: LoggerProvider,
+    private messageCleanerService: MessageCleanerService,
   ) {}
 
+  @SceneLeave()
+  async onSceneLeave(@Ctx() ctx: Scenes.SceneContext) {
+    const session = ctx.session as any;
+    
+    // Очищаем данные сессии
+    delete session.contextName;
+    delete session.exerciseType;
+    delete session.modification;
+    
+    // Очищаем состояние сцены
+    ctx.scene.state = {};
+  }
+  
   @SceneEnter()
   async onSceneEnter(@Ctx() ctx: Scenes.SceneContext) {
     await ctx.replyWithMarkdownV2('🎛️', {
@@ -61,6 +77,7 @@ export class TrainerProvider {
         one_time_keyboard: false,
       },
     });
+
     
     const { contextName } = ctx.scene.state as any;
 
@@ -100,6 +117,12 @@ export class TrainerProvider {
     @Next() next: any,
     @Message('') message: TMessageType,
   ) {
+    if (this.isMenuMessage(message)) {
+      await this.processMenuMessage(ctx, next, message);
+
+      return;
+    }
+
     const contextName = (ctx.session as any).contextName;
     const exerciseType = (ctx.session as any).exerciseType;
 
@@ -107,30 +130,6 @@ export class TrainerProvider {
 
     if (!context) {
       throw new Error(`Context not found: ${contextName}`);
-    }
-
-    if (message.text === '📱️ Меню') {
-      await next();
-
-      return;
-    }
-
-    if (message.text === '🤓 Выбрать упражнение') {
-      try {
-        await ctx.deleteMessage();
-      } catch (e) {}
-
-      await this.getExerciseMenuButtons(ctx, context);
-      await next();
-
-      return;
-    }
-
-    if (message.text === '📚 Теория') {
-      await this.prepareRule(ctx, context);
-      await next();
-
-      return;
     }
 
     const chatId: number =
@@ -171,6 +170,7 @@ export class TrainerProvider {
 
       const clearedMessage = result.choices[0].message.content
         .replace('```json', '')
+        .replace('"', '\"')
         .replace('```', '');
 
       const parsedMessage: { title: string; description: string } =
@@ -195,7 +195,7 @@ export class TrainerProvider {
       this.logger.error(`${this.constructor.name} answerAnswer: ${e}`);
 
       await ctx.replyWithMarkdownV2(
-        'Я не понял ответ, давай попробуем другое предложение1',
+        'Я не понял ответ, давай попробуем другое предложение',
         {
           reply_markup: {
             inline_keyboard: [
@@ -250,18 +250,20 @@ export class TrainerProvider {
         await ctx.editMessageReplyMarkup(undefined);
       } catch (e) {}
 
-      await ctx.reply('Окей, тема выбрана.\n\n' + exercise.description, {
+      const message = await ctx.reply('Окей, тема выбрана.\n\n' + exercise.description, {
         reply_markup: {
           inline_keyboard: [
             [
               {
                 text: '✅ Начем?',
-                callback_data: 'set_modification:none',
+                callback_data: 'get_exercise:delete',
               },
             ],
           ],
         },
       });
+
+      await this.messageCleanerService.saveReply(ctx, message);
 
       return;
     }
@@ -295,13 +297,17 @@ export class TrainerProvider {
       modificationButtons.push(row);
     }
 
-    await ctx.reply('Выберите модификатор', {
+    await this.messageCleanerService.deletePrev(ctx);
+
+    const message = await ctx.reply('Выберите модификатор', {
       reply_markup: {
         inline_keyboard: modificationButtons,
       },
     });
-  }
 
+    await this.messageCleanerService.saveReply(ctx, message);
+  }
+  
   @Action(/^set_modification(?::\w+)?$/)
   async onModification(
     @Ctx() ctx: Scenes.SceneContext & { update: { callback_query: any } },
@@ -318,7 +324,7 @@ export class TrainerProvider {
 
     (ctx.session as any).modification = modification;
 
-    await ctx.reply('Окей, тема выбрана', {
+    const message = await ctx.reply('Окей, тема выбрана', {
       reply_markup: {
         inline_keyboard: [
           [
@@ -330,6 +336,8 @@ export class TrainerProvider {
         ],
       },
     });
+
+    await this.messageCleanerService.saveReply(ctx, message);
   }
 
   @Action(/^get_exercise(?::\w+)?$/)
@@ -485,11 +493,11 @@ export class TrainerProvider {
     );
 
     if (!exercises.length) {
-      try {
-        await ctx.editMessageReplyMarkup(undefined);
-      } catch (e) {}
+      // try {
+        // await ctx.editMessageReplyMarkup(undefined);
+      // } catch (e) {}
 
-      await ctx.reply('Окей, тема выбрана', {
+      const message = await ctx.reply('Окей, тема выбрана', {
         reply_markup: {
           inline_keyboard: [
             [
@@ -501,6 +509,8 @@ export class TrainerProvider {
           ],
         },
       });
+
+      await this.messageCleanerService.saveReply(ctx, message);
 
       return;
     }
@@ -534,10 +544,53 @@ export class TrainerProvider {
       return;
     }
 
-    await ctx.replyWithMarkdownV2('Выберите тип упражнения', {
+    await this.messageCleanerService.deletePrev(ctx);
+
+    const message = await ctx.replyWithMarkdownV2('Выберите тип упражнения', {
       reply_markup: {
         inline_keyboard: exercisesButtons,
       },
     });
+
+    await this.messageCleanerService.saveReply(ctx, message);
+  }
+
+  private isMenuMessage(message: TMessageType) {
+    return ['📱️ Меню', '🤓 Выбрать упражнение', '📚 Теория'].includes(message.text);
+  }
+
+  private async processMenuMessage(ctx: Scenes.SceneContext, @Next() next: any, message: TMessageType) {
+    const contextName = (ctx.session as any).contextName;
+    const context = await this.contextProvider.getOneByAlias(contextName);
+    
+    if (!context) {
+      throw new Error(`Context not found: ${contextName}`);
+    }
+
+    await this.messageCleanerService.deletePrev(ctx);
+    
+    if (message.text === '📱️ Меню') {
+      await next();
+
+      return;
+    }
+
+    if (message.text === '🤓 Выбрать упражнение') {
+      try {
+        await ctx.deleteMessage();
+      } catch (e) {}
+
+      await this.getExerciseMenuButtons(ctx, context);
+      await next();
+
+      return;
+    }
+
+    if (message.text === '📚 Теория') {
+      await this.prepareRule(ctx, context);
+      await next();
+
+      return;
+    }
   }
 }
