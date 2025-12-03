@@ -23,12 +23,12 @@ export class ChatProvider {
 
   async getRecords(chatId: number, contextId: string, exerciseId: string) {
     const records = await this.chatRepo
-      .findOne({ chatId, contextId, exerciseId }, { content: 1 })
+      .findOne({ chatId, contextId, exerciseId }, { content: { $slice: -15 } })
       .lean()
       .exec();
 
-    if (records) {
-      return records.content.map(({ question }) => question);
+    if (records && records.content) {
+      return records.content.map((item: { question: string; answer: string }) => item.question);
     }
 
     return [];
