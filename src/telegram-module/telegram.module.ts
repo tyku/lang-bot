@@ -14,6 +14,7 @@ import { SubscriptionModule } from '../subscription-module/subscription.module';
 import { PromoModule } from '../promo-module/promo.module';
 import { PaymentProvider } from './scenes/payment.provider';
 import { MessageCleanerService } from './message-cleaner.service';
+import { PaymentModule } from 'src/payments-module/payment.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { MessageCleanerService } from './message-cleaner.service';
     PromoModule,
     ExercisesModule,
     SubscriptionModule,
+    PaymentModule,
   ],
   providers: [
     MenuProvider,

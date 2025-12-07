@@ -33,7 +33,7 @@ export class PromocodeProvider {
 
     await ctx.replyWithMarkdownV2('🎛️', {
       reply_markup: {
-        keyboard: [[{ text: '📱️Меню' }]],
+        keyboard: [[{ text: '📱️ Меню' }]],
         resize_keyboard: true,
         one_time_keyboard: false,
       },
@@ -48,7 +48,7 @@ export class PromocodeProvider {
     @Next() next: any,
     @Message('') message: TMessageType,
   ) {
-    if (message.text === '📱️Меню') {
+    if (message.text === '📱️ Меню') {
       await next();
 
       return;

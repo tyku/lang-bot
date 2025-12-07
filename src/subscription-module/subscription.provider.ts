@@ -17,4 +17,8 @@ export class SubscriptionProvider {
 
     return Boolean(activeSubscriptions);
   }
+
+  getActiveSubscription(chatId: number) {
+    return this.subscriptionRepo.findOne({ chatId, dateTo: { $gte: new Date() } }).lean().exec();
+  }
 }

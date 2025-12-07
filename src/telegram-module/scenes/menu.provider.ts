@@ -21,6 +21,7 @@ export class MenuProvider {
       'name',
       'alias',
       'order',
+      'isFree'
     ]);
 
     const sortedContext = activeContexts.sort(
@@ -28,10 +29,10 @@ export class MenuProvider {
     );
 
     const menuButtons = sortedContext.reduce((acc, item) => {
-      const { name, alias } = item;
+      const { name, alias, isFree } = item;
 
       const button = {
-        text: name,
+        text: isFree ? `🆓 ${name}` : name,
         callback_data: `trainer:${alias}`,
       };
       acc.push([button]);
