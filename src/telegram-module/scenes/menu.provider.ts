@@ -53,13 +53,13 @@ export class MenuProvider {
               },
               // { text: '🤝 Реферальная система', callback_data: 'referral' },
             ],
-            [
-              {
-                text: '📬 Поддержка',
-                url: 'https://t.me/RabbitHole_support',
-              },
+            // [
+              // {
+                // text: '📬 Поддержка',
+                // url: 'https://t.me/RabbitHole_support',
+              // },
               // { text: '🤝 Реферальная система', callback_data: 'referral' },
-            ],
+            // ],
           ],
         },
       },

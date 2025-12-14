@@ -182,7 +182,7 @@ export class TrainerProvider {
       const clearedDescription = escapeText(parsedMessage.description);
         
 
-      const newSentence = await ctx.replyWithMarkdownV2(clearedDescription, {
+      await ctx.replyWithMarkdownV2(clearedDescription, {
         reply_markup: {
           inline_keyboard: [
             [
@@ -549,12 +549,5 @@ export class TrainerProvider {
 
       return;
     }
-
-    // if (message.text === '📚 Теория') {
-    //   await this.prepareRule(ctx, context);
-    //   await next();
-
-    //   return;
-    // }
   }
 }
