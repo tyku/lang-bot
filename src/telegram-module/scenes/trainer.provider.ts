@@ -21,6 +21,7 @@ import { ExercisesProvider } from '../../exercises-module/exercises.provider';
 import { SubscriptionProvider } from '../../subscription-module/subscription.provider';
 import { escapeText } from '../libs/text-format';
 import { MessageCleanerService } from '../message-cleaner.service';
+import { FeedbackProvider } from '../../feedback-module/feedback.provider';
 
 import type { InlineKeyboardButton } from '@telegraf/types';
 import type { TMessageType } from '../types/message';
@@ -53,6 +54,7 @@ export class TrainerProvider {
     private openRouterProvider: OpenRouterProvider,
     private logger: LoggerProvider,
     private messageCleanerService: MessageCleanerService,
+    private feedbackProvider: FeedbackProvider,
   ) {}
 
   @SceneLeave()
@@ -435,8 +437,36 @@ export class TrainerProvider {
         },
       );
 
-      // await ctx.reply(`${parsedMessage.text.trim()}\n\n ${parsedMessage.answer}`);
-      await ctx.reply(`${parsedMessage.text.trim()}`);
+      const text = parsedMessage.text.trim();
+      const exerciseType = (ctx.session as any).exerciseType || exercise.alias;
+      const contextId = context._id.toString();
+      
+      const message = await ctx.reply(text, {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: '👎',
+                callback_data: 'feedback',
+              },
+            ],
+          ],
+        },
+      });
+
+      // Сохраняем данные для feedback в сессии с message_id как ключ
+      const session = ctx.session as any;
+      if (!session.feedbackData) {
+        session.feedbackData = {};
+      }
+      session.feedbackData[message.message_id] = {
+        chatId,
+        text,
+        contextId,
+        exerciseType,
+      };
+      
+      this.logger.log(`${this.constructor.name} onTrainer: создана кнопка feedback для messageId=${message.message_id}`);
     } catch (e) {
       this.logger.error(`${this.constructor.name} onTrainer: ${e}`);
 
@@ -521,6 +551,50 @@ export class TrainerProvider {
 
   private isMenuMessage(message: TMessageType) {
     return ['📱️ Меню', '🤓 Выбрать упражнение', '📚 Теория'].includes(message.text);
+  }
+
+  @Action(/^feedback$/)
+  async onFeedback(
+    @Ctx() ctx: Scenes.SceneContext & { update: { callback_query: any } },
+  ) {
+    try {
+      this.logger.log(`${this.constructor.name} onFeedback: обработчик вызван`);
+      
+      const messageId = ctx.update.callback_query?.message?.message_id;
+      const session = ctx.session as any;
+      
+      this.logger.log(`${this.constructor.name} onFeedback: messageId=${messageId}, session.feedbackData=`, session.feedbackData);
+      
+      const feedbackData = session.feedbackData?.[messageId];
+      
+      if (!feedbackData) {
+        this.logger.warn(`${this.constructor.name} onFeedback: данные не найдены для messageId=${messageId}`);
+        await ctx.answerCbQuery('Ошибка: данные не найдены');
+        return;
+      }
+
+      await this.feedbackProvider.create({
+        chatId: feedbackData.chatId,
+        text: feedbackData.text,
+        contextId: feedbackData.contextId,
+        exerciseType: feedbackData.exerciseType,
+      });
+
+      await ctx.answerCbQuery('Ваш отзыв получен');
+      
+      // Удаляем кнопку после нажатия
+      try {
+        await ctx.editMessageReplyMarkup(undefined);
+      } catch (e) {
+        // Игнорируем ошибки
+      }
+      
+      // Очищаем данные из сессии
+      delete session.feedbackData[messageId];
+    } catch (e) {
+      this.logger.error(`${this.constructor.name} onFeedback error:`, e);
+      await ctx.answerCbQuery('Произошла ошибка');
+    }
   }
 
   private async processMenuMessage(ctx: Scenes.SceneContext, @Next() next: any, message: TMessageType) {
