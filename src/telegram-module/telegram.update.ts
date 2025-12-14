@@ -259,7 +259,10 @@ export class TelegramUpdate {
 
       await ctx.reply(
         `✅ Платеж успешно обработан!\n\n` +
-        `💰 Оформлена подписка до: 🎨 ${plusDays.toLocaleDateString()} обработок\n`);
+        `💰 Оформлена подписка до: 🎨 ${plusDays.toLocaleDateString('RU-ru')}`);
+
+        await ctx.scene.leave();
+        await ctx.scene.enter('MENU_SCENE_ID')
     } catch (e) {
       this.logger.error(`${this.constructor.name} onSuccessfulPayment: ${e}`);
       
