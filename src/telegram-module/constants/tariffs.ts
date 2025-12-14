@@ -11,8 +11,8 @@ export const TARIFFS: TTariff[] = [
     id: 'tariff_1',
     name: 'Одна неделя полного доступа',
     amount: 7,
-    price: 1,
-    label: 'Неделя за 1 ⭐',
+    price: 100,
+    label: 'Неделя за 100 ⭐',
   },
   {
     id: 'tariff_2',
