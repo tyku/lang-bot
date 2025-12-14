@@ -72,7 +72,10 @@ export class TrainerProvider {
   async onSceneEnter(@Ctx() ctx: Scenes.SceneContext) {
     await ctx.replyWithMarkdownV2('🎛️', {
       reply_markup: {
-        keyboard: [[{ text: '📱️ Меню' }], [{ text: '📚 Теория' }]],
+        keyboard: [
+          [{ text: '📱️ Меню' }],
+          // [{ text: '📚 Теория' }]
+          ],
         resize_keyboard: true,
         one_time_keyboard: false,
       },
