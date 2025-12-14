@@ -18,9 +18,6 @@ export class Context {
   order: number;
 
   @Prop()
-  promptRule: string;
-
-  @Prop()
   rule: string;
 
   @Prop()

@@ -435,7 +435,8 @@ export class TrainerProvider {
         },
       );
 
-      await ctx.reply(`${parsedMessage.text.trim()}\n\n ${parsedMessage.answer}`);
+      // await ctx.reply(`${parsedMessage.text.trim()}\n\n ${parsedMessage.answer}`);
+      await ctx.reply(`${parsedMessage.text.trim()}`);
     } catch (e) {
       this.logger.error(`${this.constructor.name} onTrainer: ${e}`);
 
@@ -454,52 +455,12 @@ export class TrainerProvider {
     }
   }
 
-  private async prepareRule(
-    ctx: Scenes.SceneContext,
-    context: Context & { _id: mongoose.Types.ObjectId },
-  ) {
-    const awaitingMessage = await ctx.reply(
-      'Пару мгновений, готовлю краткую справку️ ⏱️⏱️⏱️',
-    );
-
-    let rule: string = context.rule;
-
-    if (!context.rule) {
-      const result = await this.openRouterProvider.sendMessage(
-        context.promptRule,
-      );
-
-      rule = prepareText(result);
-
-      await this.contextProvider.updateOne({ _id: context._id }, { rule });
-    }
-
-    await ctx.deleteMessage(awaitingMessage.message_id);
-
-    await ctx.replyWithMarkdownV2(rule, {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            {
-              text: 'Новое предложение?',
-              callback_data: 'get_exercise',
-            },
-          ],
-        ],
-      },
-    });
-  }
-
   private async getExerciseMenuButtons(ctx: Scenes.SceneContext, context: Context & { _id: mongoose.Types.ObjectId }) {
     const exercises = await this.exercisesProvider.getByCodes(
       context.exercises,
     );
 
     if (!exercises.length) {
-      // try {
-        // await ctx.editMessageReplyMarkup(undefined);
-      // } catch (e) {}
-
       const message = await ctx.reply('Окей, тема выбрана', {
         reply_markup: {
           inline_keyboard: [
@@ -589,11 +550,11 @@ export class TrainerProvider {
       return;
     }
 
-    if (message.text === '📚 Теория') {
-      await this.prepareRule(ctx, context);
-      await next();
+    // if (message.text === '📚 Теория') {
+    //   await this.prepareRule(ctx, context);
+    //   await next();
 
-      return;
-    }
+    //   return;
+    // }
   }
 }
