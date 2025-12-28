@@ -47,14 +47,14 @@ function prepareText(result: any) {
 }
 
 const modificationLabels: Record<string, string> = {
-  affirmative: '✅ Утвердительное',
+  affirmative: '❗ Утвердительное',
   negative: '❌ Отрицательное',
   question: '❓ Вопросительное',
   none: '🔥 Все типы',
 };
 
-function getModificationLabel(modification: string) { 
-  return modificationLabels[modification] || '🔥 Все типы';
+function getModificationLabel(modification?: string) { 
+  return modification ? modificationLabels[modification] : '🔥 Все типы';
 }
 
 @Scene('TRAINER_SCENE_ID')
@@ -259,7 +259,11 @@ export class TrainerProvider {
         await ctx.editMessageReplyMarkup(undefined);
       } catch (e) {}
 
-      const message = await ctx.reply('Окей, тема выбрана.\n\n' + exercise.description, {
+      const message = await ctx.replyWithMarkdownV2(
+        escapeText('Запонил 😎:\n\n'
+        + `*Тема:* ${(ctx.session as any).contextTheme}\n` 
+        + `*Упражнение:* ${(ctx.session as any).exerciseDescription}\n` 
+        + `*Типы предложений:* ${getModificationLabel(undefined)}`), {
         reply_markup: {
           inline_keyboard: [
             [
@@ -333,7 +337,7 @@ export class TrainerProvider {
 
     (ctx.session as any).modification = modification;
 
-    const message = await ctx.replyWithMarkdownV2(escapeText('Запонил 😎:\n\n'
+    const message = await ctx.replyWithMarkdownV2(escapeText('Запомнил 😎\n\n'
        + `*Тема:* ${(ctx.session as any).contextTheme}\n` 
        + `*Упражнение:* ${(ctx.session as any).exerciseDescription}\n` 
        + `*Типы предложений:* ${getModificationLabel(modification)}`), {
@@ -492,7 +496,11 @@ export class TrainerProvider {
     );
 
     if (!exercises.length) {
-      const message = await ctx.reply('Окей, тема выбрана', {
+      const message = await ctx.replyWithMarkdownV2(
+        escapeText('Запомнил 😎\n\n'
+        + `*Тема:* ${(ctx.session as any).contextTheme}\n` 
+        + `*Упражнение:* ${(ctx.session as any).exerciseDescription}\n` 
+        + `*Типы предложений:* ${getModificationLabel(undefined)}`), {
         reply_markup: {
           inline_keyboard: [
             [
@@ -585,7 +593,20 @@ export class TrainerProvider {
       
       // Удаляем кнопку после нажатия
       try {
-        await ctx.editMessageReplyMarkup(undefined);
+        const message = ctx.update.callback_query.message;
+        await ctx.editMessageText(escapeText(`~${message.text}~`), {
+          parse_mode: 'MarkdownV2',
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: 'Новое предложение?',
+                  callback_data: 'get_exercise:delete',
+                },
+              ],
+            ] 
+          }
+        });
       } catch (e) {
         // Игнорируем ошибки
       }
