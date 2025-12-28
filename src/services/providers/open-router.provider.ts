@@ -8,6 +8,8 @@ import type { TMessageData } from '../types';
 const GPT_4_MINI_MODEL = 'openai/gpt-4o-mini';
 const ACREE_AI_TRINITY_MINI_MODEL = 'arcee-ai/trinity-mini:free';
 const AMAZON_NOVA_2_MODEL = 'amazon/nova-2-lite-v1';
+const QWEN3_MODEL = 'qwen/qwen3-235b-a22b-2507';
+
 @Injectable()
 export class OpenRouterProvider extends BaseService {
   protected providerName = OPEN_ROUTER_PROVIDER_TOKEN;
@@ -36,7 +38,7 @@ export class OpenRouterProvider extends BaseService {
       method: 'POST',
       headers: this.getHeaders(),
       data: {
-        model: AMAZON_NOVA_2_MODEL,
+        model: QWEN3_MODEL,
         messages,
       },
     });
