@@ -46,6 +46,17 @@ function prepareText(result: any) {
     return escapeText(parsedText);
 }
 
+const modificationLabels: Record<string, string> = {
+  affirmative: '✅ Утвердительное',
+  negative: '❌ Отрицательное',
+  question: '❓ Вопросительное',
+  none: '🔥 Все типы',
+};
+
+function getModificationLabel(modification: string) { 
+  return modificationLabels[modification] || '🔥 Все типы';
+}
+
 @Scene('TRAINER_SCENE_ID')
 export class TrainerProvider {
   constructor(
@@ -81,9 +92,9 @@ export class TrainerProvider {
     const { contextName } = ctx.scene.state as any;
 
     (ctx.session as any).contextName = contextName;
-
+    
     const context = await this.contextProvider.getOneByAlias(contextName);
-
+    
     if (!context) {
       await ctx.reply('Не удалось загрузить тему 😞');
 
@@ -92,6 +103,8 @@ export class TrainerProvider {
 
       return;
     }
+
+    (ctx.session as any).contextTheme = context.name;
 
     const chatId: number =
       (ctx.update as any)?.message?.chat?.id ||
@@ -227,6 +240,7 @@ export class TrainerProvider {
 
     const exercise = await this.exercisesProvider.getOneByAlias(value);
 
+
     if (!exercise) {
       await ctx.reply('Не удалось загрузить тему 😞');
 
@@ -235,6 +249,8 @@ export class TrainerProvider {
 
       return;
     }
+
+    (ctx.session as any).exerciseDescription = exercise.description;
 
     await this.sendMenuKeyboard(ctx, [['🤓 Выбрать упражнение'], ['📱️ Меню']]);
 
@@ -317,7 +333,10 @@ export class TrainerProvider {
 
     (ctx.session as any).modification = modification;
 
-    const message = await ctx.reply('Окей, тема выбрана', {
+    const message = await ctx.replyWithMarkdownV2(escapeText('Запонил 😎:\n\n'
+       + `*Тема:* ${(ctx.session as any).contextTheme}\n` 
+       + `*Упражнение:* ${(ctx.session as any).exerciseDescription}\n` 
+       + `*Типы предложений:* ${getModificationLabel(modification)}`), {
       reply_markup: {
         inline_keyboard: [
           [
@@ -340,13 +359,7 @@ export class TrainerProvider {
     const action = ctx.update.callback_query?.data;
     const value = action.split(':')[1];
     try {
-      switch (value) {
-        case 'delete':
-          await ctx.deleteMessage();
-          break;
-        default:
-          await ctx.editMessageReplyMarkup(undefined);
-      }
+      await ctx.editMessageReplyMarkup(undefined);
     } catch (e) {
       this.logger.error(`${this.constructor.name} onTrainer error:`, e);
     }
@@ -632,12 +645,17 @@ export class TrainerProvider {
       (ctx as any).chat?.id;
 
     if (chatId && message?.message_id) {
-      const lastMessage = await this.messageStorageProvider.getLastMessageByType(chatId, MessageType.MENU);
-      console.log('lastMessage--------------------------', lastMessage);
-      if (lastMessage) {
+      // const lastMessage = await this.messageStorageProvider.getLastMessageByType(chatId, MessageType.MENU);
+      const lastMessages = await this.messageStorageProvider.getAllMessageByType(chatId, MessageType.MENU);
+
+      if (lastMessages.length) {
+        for (const message of lastMessages) {
         try {
-          await ctx.deleteMessage(lastMessage.messageId);
-        } catch(e) {}
+            await ctx.deleteMessage(message.messageId);
+            await this.messageStorageProvider.deleteMessage(chatId, message.messageId);
+          
+          } catch(e) {}
+        }
       }
 
       await this.messageStorageProvider.saveMessage(chatId, message.message_id, MessageType.MENU);

@@ -134,5 +134,26 @@ export class MessageStorageProvider {
 
     return message ? { messageId: message.messageId, chatId: message.chatId, type: message.type } : null;
   }
+
+  async getAllMessageByType(
+    chatId: number | null,
+    type: MessageType,
+  ): Promise<Array<{ messageId: number; chatId: number; type: MessageType }>> {
+    if (!chatId) {
+      return [];
+    }
+
+    const messages = await this.messageStorageRepo
+      .find({ chatId, type, isActive: true })
+      .sort({ createdAt: -1 })
+      .lean()
+      .exec();
+
+    return messages.map((msg) => ({
+      messageId: msg.messageId,
+      chatId: msg.chatId,
+      type: msg.type,
+    }));
+  }
 }
 
