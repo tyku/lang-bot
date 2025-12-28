@@ -22,6 +22,8 @@ import { SubscriptionProvider } from '../../subscription-module/subscription.pro
 import { escapeText } from '../libs/text-format';
 import { MessageCleanerService } from '../message-cleaner.service';
 import { FeedbackProvider } from '../../feedback-module/feedback.provider';
+import { MessageStorageProvider } from '../../message-storage-module/message-storage.provider';
+import { MessageType } from '../../message-storage-module/message-storage.model';
 
 import type { InlineKeyboardButton } from '@telegraf/types';
 import type { TMessageType } from '../types/message';
@@ -55,6 +57,7 @@ export class TrainerProvider {
     private logger: LoggerProvider,
     private messageCleanerService: MessageCleanerService,
     private feedbackProvider: FeedbackProvider,
+    private messageStorageProvider: MessageStorageProvider,
   ) {}
 
   @SceneLeave()
@@ -72,16 +75,7 @@ export class TrainerProvider {
   
   @SceneEnter()
   async onSceneEnter(@Ctx() ctx: Scenes.SceneContext) {
-    await ctx.replyWithMarkdownV2('🎛️', {
-      reply_markup: {
-        keyboard: [
-          [{ text: '📱️ Меню' }],
-          // [{ text: '📚 Теория' }]
-          ],
-        resize_keyboard: true,
-        one_time_keyboard: false,
-      },
-    });
+    await this.sendMenuKeyboard(ctx, [['📱️ Меню']]);
 
     
     const { contextName } = ctx.scene.state as any;
@@ -242,13 +236,7 @@ export class TrainerProvider {
       return;
     }
 
-    await ctx.replyWithMarkdownV2('🎛️', {
-      reply_markup: {
-        keyboard: [[{ text: '🤓 Выбрать упражнение' }], [{ text: '📱️ Меню' }]],
-        resize_keyboard: true,
-        one_time_keyboard: false,
-      },
-    });
+    await this.sendMenuKeyboard(ctx, [['🤓 Выбрать упражнение'], ['📱️ Меню']]);
 
     if (exercise.modifications.length <= 1) {
       try {
@@ -622,6 +610,37 @@ export class TrainerProvider {
       await next();
 
       return;
+    }
+  }
+
+  private async sendMenuKeyboard(
+    ctx: Scenes.SceneContext,
+    buttons: string[][],
+  ): Promise<any> {
+    const message = await ctx.replyWithMarkdownV2('🎛️', {
+      reply_markup: {
+        keyboard: buttons.map((row) => row.map((text) => ({ text }))),
+        resize_keyboard: true,
+        one_time_keyboard: false,
+      },
+    });
+
+    const chatId: number =
+      (ctx.update as any)?.message?.chat?.id ||
+      (ctx.update as any)?.callback_query?.message?.chat?.id ||
+      (ctx as any).from?.id ||
+      (ctx as any).chat?.id;
+
+    if (chatId && message?.message_id) {
+      const lastMessage = await this.messageStorageProvider.getLastMessageByType(chatId, MessageType.MENU);
+      console.log('lastMessage--------------------------', lastMessage);
+      if (lastMessage) {
+        try {
+          await ctx.deleteMessage(lastMessage.messageId);
+        } catch(e) {}
+      }
+
+      await this.messageStorageProvider.saveMessage(chatId, message.message_id, MessageType.MENU);
     }
   }
 }
