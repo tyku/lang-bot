@@ -63,11 +63,11 @@ export class TelegramUpdate {
 
   @Hears('📱️ Меню')
   async menu(@Ctx() ctx: Scenes.SceneContext) {
-    await ctx.reply('👌', {
-      reply_markup: {
-        remove_keyboard: true,
-      },
-    });
+    // await ctx.reply('👌', {
+    //   reply_markup: {
+    //     remove_keyboard: true,
+    //   },
+    // });
     await ctx.scene.leave();
 
     await ctx.scene.enter('MENU_SCENE_ID');

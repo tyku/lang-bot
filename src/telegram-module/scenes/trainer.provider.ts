@@ -622,6 +622,12 @@ export class TrainerProvider {
   private async processMenuMessage(ctx: Scenes.SceneContext, @Next() next: any, message: TMessageType) {
     const contextName = (ctx.session as any).contextName;
     const context = await this.contextProvider.getOneByAlias(contextName);
+
+    const chatId: number =
+    (ctx.update as any)?.message?.chat?.id ||
+    (ctx.update as any)?.callback_query?.message?.chat?.id ||
+    (ctx as any).from?.id ||
+    (ctx as any).chat?.id;
     
     if (!context) {
       throw new Error(`Context not found: ${contextName}`);
@@ -630,6 +636,15 @@ export class TrainerProvider {
     await this.messageCleanerService.deletePrev(ctx);
     
     if (message.text === '📱️ Меню') {
+      try {
+        const lastMessage = await this.messageStorageProvider.getLastMessageByType(chatId, MessageType.MENU);
+
+        if (lastMessage) {
+          await ctx.deleteMessage(lastMessage.messageId);
+          await this.messageStorageProvider.deleteMessage(chatId, lastMessage.messageId);
+        }
+      } catch(e) {}
+      
       await next();
 
       return;
