@@ -73,54 +73,71 @@ export class TrainerProvider {
 
   @SceneLeave()
   async onSceneLeave(@Ctx() ctx: Scenes.SceneContext) {
-    const session = ctx.session as any;
+    const startTime = performance.now();
+    const handlerName = 'onSceneLeave';
     
-    // Очищаем данные сессии
-    delete session.contextName;
-    delete session.exerciseType;
-    delete session.modification;
-    
-    // Очищаем состояние сцены
-    ctx.scene.state = {};
+    try {
+      const session = ctx.session as any;
+      
+      // Очищаем данные сессии
+      delete session.contextName;
+      delete session.exerciseType;
+      delete session.modification;
+      
+      // Очищаем состояние сцены
+      ctx.scene.state = {};
+    } finally {
+      const duration = performance.now() - startTime;
+      this.logger.log(`${this.constructor.name} ${handlerName}: выполнен за ${duration.toFixed(2)}ms`);
+    }
   }
   
   @SceneEnter()
   async onSceneEnter(@Ctx() ctx: Scenes.SceneContext) {
-    await this.sendMenuKeyboard(ctx, [['📱️ Меню']]);
-
+    const startTime = performance.now();
+    const handlerName = 'onSceneEnter';
     
-    const { contextName } = ctx.scene.state as any;
+    try {
+      const { contextName } = ctx.scene.state as any;
+      (ctx.session as any).contextName = contextName;
 
-    (ctx.session as any).contextName = contextName;
-    
-    const context = await this.contextProvider.getOneByAlias(contextName);
-    
-    if (!context) {
-      await ctx.reply('Не удалось загрузить тему 😞');
+      // Параллельно выполняем независимые операции
+      const [context, menuMessage] = await Promise.all([
+        this.contextProvider.getOneByAlias(contextName),
+        this.sendMenuKeyboard(ctx, [['📱️ Меню']]),
+      ]);
+      
+      if (!context) {
+        await ctx.reply('Не удалось загрузить тему 😞');
 
-      await ctx.scene.leave();
-      await ctx.scene.enter('MENU_SCENE_ID');
+        await ctx.scene.leave();
+        await ctx.scene.enter('MENU_SCENE_ID');
 
-      return;
+        return;
+      }
+
+      (ctx.session as any).contextTheme = context.name;
+
+      const chatId: number =
+        (ctx.update as any)?.message?.chat?.id ||
+        (ctx.update as any)?.callback_query?.message?.chat?.id;
+
+      // Проверяем подписку
+      const hasActiveSubscription =
+        await this.subscritionProvider.hasActiveSubscription(chatId);
+
+      if (!hasActiveSubscription && !context.isFree) {
+        await ctx.scene.leave();
+        await ctx.scene.enter('PAYMENT_SCENE_ID');
+
+        return;
+      }
+
+      await this.getExerciseMenuButtons(ctx, context);
+    } finally {
+      const duration = performance.now() - startTime;
+      this.logger.log(`${this.constructor.name} ${handlerName}: выполнен за ${duration.toFixed(2)}ms`);
     }
-
-    (ctx.session as any).contextTheme = context.name;
-
-    const chatId: number =
-      (ctx.update as any)?.message?.chat?.id ||
-      (ctx.update as any)?.callback_query?.message?.chat?.id;
-
-    const hasActiveSubscription =
-      await this.subscritionProvider.hasActiveSubscription(chatId);
-
-    if (!hasActiveSubscription && !context.isFree) {
-      await ctx.scene.leave();
-      await ctx.scene.enter('PAYMENT_SCENE_ID');
-
-      return;
-    }
-
-    await this.getExerciseMenuButtons(ctx, context);
   }
 
   @On('text')
@@ -129,86 +146,73 @@ export class TrainerProvider {
     @Next() next: any,
     @Message('') message: TMessageType,
   ) {
-    if (this.isMenuMessage(message)) {
-      await this.processMenuMessage(ctx, next, message);
-
-      return;
-    }
-
-    const contextName = (ctx.session as any).contextName;
-    const exerciseType = (ctx.session as any).exerciseType;
-
-    const context = await this.contextProvider.getOneByAlias(contextName);
-
-    if (!context) {
-      throw new Error(`Context not found: ${contextName}`);
-    }
-
-    const chatId: number =
-      (ctx.update as any)?.message?.chat?.id ||
-      (ctx.update as any)?.callback_query?.message?.chat?.id;
-
+    const startTime = performance.now();
+    const handlerName = 'answerAnswer';
+    
     try {
-      const exercise = await this.exercisesProvider.getOneByAlias(exerciseType);
+      if (this.isMenuMessage(message)) {
+        await this.processMenuMessage(ctx, next, message);
 
-      if (!exercise) {
-        throw new Error(`Exercise not found (alias=${exerciseType})`);
+        return;
       }
 
-      const record = await this.chatProvider.getLastQuestion(
-        chatId,
-        context._id.toString(),
-        exercise._id.toString(),
-      );
+      const contextName = (ctx.session as any).contextName;
+      const exerciseType = (ctx.session as any).exerciseType;
 
-      const messageData: TMessageData[] = [];
+      const context = await this.contextProvider.getOneByAlias(contextName);
 
-      if (record) {
-        messageData.push({
-          type: 'text',
-          text: JSON.stringify({ question: record.question, answer: message.text }),
-        });
-      } else {
-        messageData.push({
-          type: 'text',
-          text: message.text,
-        });
+      if (!context) {
+        throw new Error(`Context not found: ${contextName}`);
       }
 
-      const result = await this.openRouterProvider.sendMessage(
-        context.promptQuestion + ' ' + exercise.promptAnswer,
-        messageData,
-      );
+      const chatId: number =
+        (ctx.update as any)?.message?.chat?.id ||
+        (ctx.update as any)?.callback_query?.message?.chat?.id;
 
-      const clearedMessage = result.choices[0].message.content
-        .replace('```json', '')
-        .replace('"', '\"')
-        .replace('```', '');
+      try {
+        const exercise = await this.exercisesProvider.getOneByAlias(exerciseType);
 
-      const parsedMessage: { title: string; description: string } =
-        JSON.parse(clearedMessage);
+        if (!exercise) {
+          throw new Error(`Exercise not found (alias=${exerciseType})`);
+        }
 
-      const clearedDescription = escapeText(parsedMessage.description);
-        
+        const record = await this.chatProvider.getLastQuestion(
+          chatId,
+          context._id.toString(),
+          exercise._id.toString(),
+        );
 
-      await ctx.replyWithMarkdownV2(clearedDescription, {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: 'Новое предложение?',
-                callback_data: 'get_exercise:delete',
-              },
-            ],
-          ],
-        },
-      });
-    } catch (e) {
-      this.logger.error(`${this.constructor.name} answerAnswer: ${e}`);
+        const messageData: TMessageData[] = [];
 
-      await ctx.replyWithMarkdownV2(
-        'Я не понял ответ, давай попробуем другое предложение',
-        {
+        if (record) {
+          messageData.push({
+            type: 'text',
+            text: JSON.stringify({ question: record.question, answer: message.text }),
+          });
+        } else {
+          messageData.push({
+            type: 'text',
+            text: message.text,
+          });
+        }
+
+        const result = await this.openRouterProvider.sendMessage(
+          context.promptQuestion + ' ' + exercise.promptAnswer,
+          messageData,
+        );
+
+        const clearedMessage = result.choices[0].message.content
+          .replace('```json', '')
+          .replace('"', '\"')
+          .replace('```', '');
+
+        const parsedMessage: { title: string; description: string } =
+          JSON.parse(clearedMessage);
+
+        const clearedDescription = escapeText(parsedMessage.description);
+          
+
+        await ctx.replyWithMarkdownV2(clearedDescription, {
           reply_markup: {
             inline_keyboard: [
               [
@@ -219,8 +223,29 @@ export class TrainerProvider {
               ],
             ],
           },
-        },
-      );
+        });
+      } catch (e) {
+        this.logger.error(`${this.constructor.name} answerAnswer: ${e}`);
+
+        await ctx.replyWithMarkdownV2(
+          'Я не понял ответ, давай попробуем другое предложение',
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: 'Новое предложение?',
+                    callback_data: 'get_exercise:delete',
+                  },
+                ],
+              ],
+            },
+          },
+        );
+      }
+    } finally {
+      const duration = performance.now() - startTime;
+      this.logger.log(`${this.constructor.name} ${handlerName}: выполнен за ${duration.toFixed(2)}ms`);
     }
   }
 
@@ -228,42 +253,129 @@ export class TrainerProvider {
   async onExercise(
     @Ctx() ctx: Scenes.SceneContext & { update: { callback_query: any } },
   ) {
+    const startTime = performance.now();
+    const handlerName = 'onExercise';
 
     try {
-      await ctx.deleteMessage(undefined);
-    } catch (e) {}
+      const action = ctx.update.callback_query?.data;
+      const value = action.split(':')[1];
 
-    const action = ctx.update.callback_query?.data;
-    const value = action.split(':')[1];
+      (ctx.session as any).exerciseType = value;
 
-    (ctx.session as any).exerciseType = value;
+      // Параллельно удаляем сообщение и получаем упражнение
+      const [, exercise] = await Promise.all([
+        ctx.deleteMessage(undefined).catch(() => {}), // Игнорируем ошибки удаления
+        this.exercisesProvider.getOneByAlias(value),
+      ]);
 
-    const exercise = await this.exercisesProvider.getOneByAlias(value);
+      if (!exercise) {
+        await ctx.reply('Не удалось загрузить тему 😞');
 
+        await ctx.scene.leave();
+        await ctx.scene.enter('MENU_SCENE_ID');
 
-    if (!exercise) {
-      await ctx.reply('Не удалось загрузить тему 😞');
+        return;
+      }
 
-      await ctx.scene.leave();
-      await ctx.scene.enter('MENU_SCENE_ID');
+      (ctx.session as any).exerciseDescription = exercise.description;
 
-      return;
+      await this.sendMenuKeyboard(ctx, [['🤓 Выбрать упражнение'], ['📱️ Меню']]);
+
+      if (exercise.modifications.length <= 1) {
+        try {
+          await ctx.editMessageReplyMarkup(undefined);
+        } catch (e) {}
+
+        const message = await ctx.replyWithMarkdownV2(
+          escapeText('Запонил 😎:\n\n'
+          + `*Тема:* ${(ctx.session as any).contextTheme}\n` 
+          + `*Упражнение:* ${(ctx.session as any).exerciseDescription}\n` 
+          + `*Типы предложений:* ${getModificationLabel(undefined)}`), {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: '✅ Начем?',
+                  callback_data: 'get_exercise:delete',
+                },
+              ],
+            ],
+          },
+        });
+
+        await this.messageCleanerService.saveReply(ctx, message);
+
+        return;
+      }
+
+      // Создаем кнопки модификаторов
+      const modificationButtons: InlineKeyboardButton[][] = [];
+      const modificationLabels: Record<string, string> = {
+        affirmative: '✅ Утвердительное',
+        negative: '❌ Отрицательное',
+        question: '❓ Вопросительное',
+        none: '🔥 Все типы',
+      };
+
+      for (let i = 0; i < exercise.modifications.length; i += 2) {
+        const row: InlineKeyboardButton[] = [];
+
+        const mod1 = exercise.modifications[i];
+        row.push({
+          text: modificationLabels[mod1] || mod1,
+          callback_data: `set_modification:${mod1}`,
+        });
+
+        if (exercise.modifications[i + 1]) {
+          const mod2 = exercise.modifications[i + 1];
+          row.push({
+            text: modificationLabels[mod2] || mod2,
+            callback_data: `set_modification:${mod2}`,
+          });
+        }
+
+        modificationButtons.push(row);
+      }
+
+      await this.messageCleanerService.deletePrev(ctx);
+
+      const message = await ctx.reply('Выберите модификатор', {
+        reply_markup: {
+          inline_keyboard: modificationButtons,
+        },
+      });
+
+      await this.messageCleanerService.saveReply(ctx, message);
+    } finally {
+      const duration = performance.now() - startTime;
+      this.logger.log(`${this.constructor.name} ${handlerName}: выполнен за ${duration.toFixed(2)}ms`);
     }
+  }
+  
+  @Action(/^set_modification(?::\w+)?$/)
+  async onModification(
+    @Ctx() ctx: Scenes.SceneContext & { update: { callback_query: any } },
+  ) {
+    const startTime = performance.now();
+    const handlerName = 'onModification';
 
-    (ctx.session as any).exerciseDescription = exercise.description;
-
-    await this.sendMenuKeyboard(ctx, [['🤓 Выбрать упражнение'], ['📱️ Меню']]);
-
-    if (exercise.modifications.length <= 1) {
+    try {
       try {
-        await ctx.editMessageReplyMarkup(undefined);
-      } catch (e) {}
+        await ctx.deleteMessage();
+      } catch (e) {
+        this.logger.error(`${this.constructor.name} onModification error:`, e);
+      
+      }
 
-      const message = await ctx.replyWithMarkdownV2(
-        escapeText('Запонил 😎:\n\n'
-        + `*Тема:* ${(ctx.session as any).contextTheme}\n` 
-        + `*Упражнение:* ${(ctx.session as any).exerciseDescription}\n` 
-        + `*Типы предложений:* ${getModificationLabel(undefined)}`), {
+      const action = ctx.update.callback_query?.data;
+      const modification = action.split(':')[1];
+
+      (ctx.session as any).modification = modification;
+
+      const message = await ctx.replyWithMarkdownV2(escapeText('Запомнил 😎\n\n'
+         + `*Тема:* ${(ctx.session as any).contextTheme}\n` 
+         + `*Упражнение:* ${(ctx.session as any).exerciseDescription}\n` 
+         + `*Типы предложений:* ${getModificationLabel(modification)}`), {
         reply_markup: {
           inline_keyboard: [
             [
@@ -277,216 +389,151 @@ export class TrainerProvider {
       });
 
       await this.messageCleanerService.saveReply(ctx, message);
-
-      return;
+    } finally {
+      const duration = performance.now() - startTime;
+      this.logger.log(`${this.constructor.name} ${handlerName}: выполнен за ${duration.toFixed(2)}ms`);
     }
-
-    // Создаем кнопки модификаторов
-    const modificationButtons: InlineKeyboardButton[][] = [];
-    const modificationLabels: Record<string, string> = {
-      affirmative: '✅ Утвердительное',
-      negative: '❌ Отрицательное',
-      question: '❓ Вопросительное',
-      none: '🔥 Все типы',
-    };
-
-    for (let i = 0; i < exercise.modifications.length; i += 2) {
-      const row: InlineKeyboardButton[] = [];
-
-      const mod1 = exercise.modifications[i];
-      row.push({
-        text: modificationLabels[mod1] || mod1,
-        callback_data: `set_modification:${mod1}`,
-      });
-
-      if (exercise.modifications[i + 1]) {
-        const mod2 = exercise.modifications[i + 1];
-        row.push({
-          text: modificationLabels[mod2] || mod2,
-          callback_data: `set_modification:${mod2}`,
-        });
-      }
-
-      modificationButtons.push(row);
-    }
-
-    await this.messageCleanerService.deletePrev(ctx);
-
-    const message = await ctx.reply('Выберите модификатор', {
-      reply_markup: {
-        inline_keyboard: modificationButtons,
-      },
-    });
-
-    await this.messageCleanerService.saveReply(ctx, message);
-  }
-  
-  @Action(/^set_modification(?::\w+)?$/)
-  async onModification(
-    @Ctx() ctx: Scenes.SceneContext & { update: { callback_query: any } },
-  ) {
-    try {
-      await ctx.deleteMessage();
-    } catch (e) {
-      this.logger.error(`${this.constructor.name} onModification error:`, e);
-    
-    }
-
-    const action = ctx.update.callback_query?.data;
-    const modification = action.split(':')[1];
-
-    (ctx.session as any).modification = modification;
-
-    const message = await ctx.replyWithMarkdownV2(escapeText('Запомнил 😎\n\n'
-       + `*Тема:* ${(ctx.session as any).contextTheme}\n` 
-       + `*Упражнение:* ${(ctx.session as any).exerciseDescription}\n` 
-       + `*Типы предложений:* ${getModificationLabel(modification)}`), {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            {
-              text: '✅ Начем?',
-              callback_data: 'get_exercise:delete',
-            },
-          ],
-        ],
-      },
-    });
-
-    await this.messageCleanerService.saveReply(ctx, message);
   }
 
   @Action(/^get_exercise(?::\w+)?$/)
   async onTrainer(
     @Ctx() ctx: Scenes.SceneContext & { update: { callback_query: any } },
   ) {
-    const action = ctx.update.callback_query?.data;
-    const value = action.split(':')[1];
-    try {
-      await ctx.editMessageReplyMarkup(undefined);
-    } catch (e) {
-      this.logger.error(`${this.constructor.name} onTrainer error:`, e);
-    }
-
-    const contextName = (ctx.session as any).contextName;
-    const exerciseType = (ctx.session as any).exerciseType;
-
-    const context = await this.contextProvider.getOneByAlias(contextName);
-
-    if (!context) {
-      throw new Error(`Context not found: ${contextName}`);
-    }
-
-    const exercise = await this.exercisesProvider.getOneByAlias(exerciseType);
-
-    if (!exercise) {
-      await ctx.reply('Не удалось загрузить тему 😞');
-
-      await ctx.scene.leave();
-      await ctx.scene.enter('MENU_SCENE_ID');
-
-      return;
-    }
-
-    const chatId: number =
-      (ctx.update as any)?.message?.chat?.id ||
-      (ctx.update as any)?.callback_query?.message?.chat?.id;
-
-    const records = await this.chatProvider.getRecords(
-      chatId,
-      context._id.toString(),
-      exercise._id.toString(),
-    );
-
-    const constraintPrompt =
-      'Пример не должен быть одним из списка или похожим на него: ' + records.filter(Boolean).join(' \n ');
-
-    const modificationType = (ctx.session as any).modification;
-
-    let sentenceStyle = 'утвердительным, отрицательным или вопросительным';
-
-    if (modificationType === 'affirmative') {
-      sentenceStyle = 'утвердительное';
-    } else if (modificationType === 'negative') {
-      sentenceStyle = 'отрицательное';
-    } else if (modificationType === 'question') {
-      sentenceStyle = 'вопросительное';
-    }
-
-    const replacedPrompt = exercise.promptQuestion.replace('%replacement_1%', sentenceStyle);
-    const result = await this.openRouterProvider.sendMessage(
-      context.promptQuestion + ' ' + replacedPrompt,
-      [
-        {
-          text: constraintPrompt,
-          type: 'text',
-        },
-      ],
-    );
-
-    const clearedMessage = result.choices[0].message.content
-      .replace('```json', '')
-      .replace('```', '');
+    const startTime = performance.now();
+    const handlerName = 'onTrainer';
 
     try {
-      const parsedMessage: { title: string; text: string, answer: string } =
-        JSON.parse(clearedMessage);
+      const action = ctx.update.callback_query?.data;
+      const value = action.split(':')[1];
+      try {
+        await ctx.editMessageReplyMarkup(undefined);
+      } catch (e) {
+        this.logger.error(`${this.constructor.name} onTrainer error:`, e);
+      }
 
-      await this.chatProvider.addRecord(
+      const contextName = (ctx.session as any).contextName;
+      const exerciseType = (ctx.session as any).exerciseType;
+
+      const context = await this.contextProvider.getOneByAlias(contextName);
+
+      if (!context) {
+        throw new Error(`Context not found: ${contextName}`);
+      }
+
+      const exercise = await this.exercisesProvider.getOneByAlias(exerciseType);
+
+      if (!exercise) {
+        await ctx.reply('Не удалось загрузить тему 😞');
+
+        await ctx.scene.leave();
+        await ctx.scene.enter('MENU_SCENE_ID');
+
+        return;
+      }
+
+      const chatId: number =
+        (ctx.update as any)?.message?.chat?.id ||
+        (ctx.update as any)?.callback_query?.message?.chat?.id;
+
+      const records = await this.chatProvider.getRecords(
         chatId,
         context._id.toString(),
         exercise._id.toString(),
-        {
-          question: parsedMessage.text,
-          answer: parsedMessage.answer,
-        },
       );
 
-      const text = parsedMessage.text.trim();
-      const exerciseType = (ctx.session as any).exerciseType || exercise.alias;
-      const contextId = context._id.toString();
-      
-      const message = await ctx.reply(text, {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: '👎',
-                callback_data: 'feedback',
-              },
-            ],
-          ],
-        },
-      });
+      const constraintPrompt =
+        'Пример не должен быть одним из списка или похожим на него: ' + records.filter(Boolean).join(' \n ');
 
-      // Сохраняем данные для feedback в сессии с message_id как ключ
-      const session = ctx.session as any;
-      if (!session.feedbackData) {
-        session.feedbackData = {};
+      const modificationType = (ctx.session as any).modification;
+
+      let sentenceStyle = 'утвердительным, отрицательным или вопросительным';
+
+      if (modificationType === 'affirmative') {
+        sentenceStyle = 'утвердительное';
+      } else if (modificationType === 'negative') {
+        sentenceStyle = 'отрицательное';
+      } else if (modificationType === 'question') {
+        sentenceStyle = 'вопросительное';
       }
-      session.feedbackData[message.message_id] = {
-        chatId,
-        text,
-        contextId,
-        exerciseType,
-      };
-      
-      this.logger.log(`${this.constructor.name} onTrainer: создана кнопка feedback для messageId=${message.message_id}`);
-    } catch (e) {
-      this.logger.error(`${this.constructor.name} onTrainer: ${e}`);
 
-      await ctx.reply('Я не понял ответ, давай попробуем другое предложение2', {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: 'Новое предложение?',
-                callback_data: 'get_exercise:delete',
-              },
+      const replacedPrompt = exercise.promptQuestion.replace('%replacement_1%', sentenceStyle);
+      const result = await this.openRouterProvider.sendMessage(
+        context.promptQuestion + ' ' + replacedPrompt,
+        [
+          {
+            text: constraintPrompt,
+            type: 'text',
+          },
+        ],
+      );
+
+      const clearedMessage = result.choices[0].message.content
+        .replace('```json', '')
+        .replace('```', '');
+
+      try {
+        const parsedMessage: { title: string; text: string, answer: string } =
+          JSON.parse(clearedMessage);
+
+        await this.chatProvider.addRecord(
+          chatId,
+          context._id.toString(),
+          exercise._id.toString(),
+          {
+            question: parsedMessage.text,
+            answer: parsedMessage.answer,
+          },
+        );
+
+        const text = parsedMessage.text.trim();
+        const exerciseType = (ctx.session as any).exerciseType || exercise.alias;
+        const contextId = context._id.toString();
+        
+        const message = await ctx.reply(text, {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: '👎',
+                  callback_data: 'feedback',
+                },
+              ],
             ],
-          ],
-        },
-      });
+          },
+        });
+
+        // Сохраняем данные для feedback в сессии с message_id как ключ
+        const session = ctx.session as any;
+        if (!session.feedbackData) {
+          session.feedbackData = {};
+        }
+        session.feedbackData[message.message_id] = {
+          chatId,
+          text,
+          contextId,
+          exerciseType,
+        };
+        
+        this.logger.log(`${this.constructor.name} onTrainer: создана кнопка feedback для messageId=${message.message_id}`);
+      } catch (e) {
+        this.logger.error(`${this.constructor.name} onTrainer: ${e}`);
+
+        await ctx.reply('Я не понял ответ, давай попробуем другое предложение2', {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: 'Новое предложение?',
+                  callback_data: 'get_exercise:delete',
+                },
+              ],
+            ],
+          },
+        });
+      }
+    } finally {
+      const duration = performance.now() - startTime;
+      this.logger.log(`${this.constructor.name} ${handlerName}: выполнен за ${duration.toFixed(2)}ms`);
     }
   }
 
@@ -566,6 +613,9 @@ export class TrainerProvider {
   async onFeedback(
     @Ctx() ctx: Scenes.SceneContext & { update: { callback_query: any } },
   ) {
+    const startTime = performance.now();
+    const handlerName = 'onFeedback';
+
     try {
       this.logger.log(`${this.constructor.name} onFeedback: обработчик вызван`);
       
@@ -616,6 +666,9 @@ export class TrainerProvider {
     } catch (e) {
       this.logger.error(`${this.constructor.name} onFeedback error:`, e);
       await ctx.answerCbQuery('Произошла ошибка');
+    } finally {
+      const duration = performance.now() - startTime;
+      this.logger.log(`${this.constructor.name} ${handlerName}: выполнен за ${duration.toFixed(2)}ms`);
     }
   }
 
@@ -681,17 +734,21 @@ export class TrainerProvider {
       (ctx as any).chat?.id;
 
     if (chatId && message?.message_id) {
-      // const lastMessage = await this.messageStorageProvider.getLastMessageByType(chatId, MessageType.MENU);
-      const lastMessages = await this.messageStorageProvider.getAllMessageByType(chatId, MessageType.MENU);
+      // Оптимизированное удаление: получаем только messageIds, удаляем из БД одним запросом, из Telegram - параллельно
+      const messageIds = await this.messageStorageProvider.getMessageIdsByType(chatId, MessageType.MENU);
 
-      if (lastMessages.length) {
-        for (const message of lastMessages) {
-        try {
-            await ctx.deleteMessage(message.messageId);
-            await this.messageStorageProvider.deleteMessage(chatId, message.messageId);
-          
-          } catch(e) {}
-        }
+      if (messageIds.length) {
+        // Удаляем из БД одним запросом
+        await this.messageStorageProvider.deleteMessagesByIds(chatId, messageIds);
+        
+        // Удаляем из Telegram параллельно (игнорируем ошибки)
+        await Promise.all(
+          messageIds.map((msgId) =>
+            ctx.deleteMessage(msgId).catch(() => {
+              // Игнорируем ошибки удаления (сообщение уже удалено или не существует)
+            })
+          )
+        );
       }
 
       await this.messageStorageProvider.saveMessage(chatId, message.message_id, MessageType.MENU);

@@ -155,5 +155,41 @@ export class MessageStorageProvider {
       type: msg.type,
     }));
   }
+
+  /**
+   * Получить messageIds сообщений определенного типа для батчинга удалений
+   */
+  async getMessageIdsByType(
+    chatId: number | null,
+    type: MessageType,
+  ): Promise<number[]> {
+    if (!chatId) {
+      return [];
+    }
+
+    const messages = await this.messageStorageRepo
+      .find({ chatId, type, isActive: true }, { messageId: 1 })
+      .lean()
+      .exec();
+
+    return messages.map((msg) => msg.messageId);
+  }
+
+  /**
+   * Удалить сообщения по списку messageIds (оптимизированное удаление)
+   */
+  async deleteMessagesByIds(
+    chatId: number | null,
+    messageIds: number[],
+  ): Promise<void> {
+    if (!chatId || !messageIds.length) {
+      return;
+    }
+
+    await this.messageStorageRepo.deleteMany({
+      chatId,
+      messageId: { $in: messageIds },
+    });
+  }
 }
 

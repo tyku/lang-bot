@@ -21,3 +21,4 @@ export class Subscription {
 
 export const SubscriptionsSchema = SchemaFactory.createForClass(Subscription);
 SubscriptionsSchema.index({ chatId: 1, code: 1 }, { unique: true });
+SubscriptionsSchema.index({ chatId: 1, dateTo: 1 });
