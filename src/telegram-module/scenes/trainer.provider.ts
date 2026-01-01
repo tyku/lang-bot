@@ -118,13 +118,17 @@ export class TrainerProvider {
 
       (ctx.session as any).contextTheme = context.name;
 
-      const chatId: number =
-        (ctx.update as any)?.message?.chat?.id ||
-        (ctx.update as any)?.callback_query?.message?.chat?.id;
+      const chatId = this.getChatId(ctx);
 
-      // Проверяем подписку
-      const hasActiveSubscription =
-        await this.subscritionProvider.hasActiveSubscription(chatId);
+      if (!chatId) {
+        await ctx.reply('Ошибка: не удалось определить chatId');
+        return;
+      }
+
+      // Параллельно проверяем подписку и получаем упражнения
+      const [hasActiveSubscription] = await Promise.all([
+        this.subscritionProvider.hasActiveSubscription(chatId),
+      ]);
 
       if (!hasActiveSubscription && !context.isFree) {
         await ctx.scene.leave();
@@ -165,9 +169,12 @@ export class TrainerProvider {
         throw new Error(`Context not found: ${contextName}`);
       }
 
-      const chatId: number =
-        (ctx.update as any)?.message?.chat?.id ||
-        (ctx.update as any)?.callback_query?.message?.chat?.id;
+      const chatId = this.getChatId(ctx);
+
+      if (!chatId) {
+        await ctx.reply('Ошибка: не удалось определить chatId');
+        return;
+      }
 
       try {
         const exercise = await this.exercisesProvider.getOneByAlias(exerciseType);
@@ -431,9 +438,12 @@ export class TrainerProvider {
         return;
       }
 
-      const chatId: number =
-        (ctx.update as any)?.message?.chat?.id ||
-        (ctx.update as any)?.callback_query?.message?.chat?.id;
+      const chatId = this.getChatId(ctx);
+
+      if (!chatId) {
+        await ctx.reply('Ошибка: не удалось определить chatId');
+        return;
+      }
 
       const records = await this.chatProvider.getRecords(
         chatId,
@@ -676,11 +686,7 @@ export class TrainerProvider {
     const contextName = (ctx.session as any).contextName;
     const context = await this.contextProvider.getOneByAlias(contextName);
 
-    const chatId: number =
-    (ctx.update as any)?.message?.chat?.id ||
-    (ctx.update as any)?.callback_query?.message?.chat?.id ||
-    (ctx as any).from?.id ||
-    (ctx as any).chat?.id;
+    const chatId = this.getChatId(ctx);
     
     if (!context) {
       throw new Error(`Context not found: ${contextName}`);
@@ -689,6 +695,11 @@ export class TrainerProvider {
     await this.messageCleanerService.deletePrev(ctx);
     
     if (message.text === '📱️ Меню') {
+      if (!chatId) {
+        await next();
+        return;
+      }
+      
       try {
         const lastMessage = await this.messageStorageProvider.getLastMessageByType(chatId, MessageType.MENU);
 
@@ -727,31 +738,67 @@ export class TrainerProvider {
       },
     });
 
+    const chatId = this.getChatId(ctx);
+
+    if (chatId && message?.message_id) {
+      // Сначала сохраняем новое сообщение (критично)
+      await this.messageStorageProvider.saveMessage(chatId, message.message_id, MessageType.MENU);
+      
+      // Удаление старых сообщений делаем неблокирующим (fire-and-forget)
+      // Это не блокирует ответ пользователю
+      this.deleteOldMenuMessages(ctx, chatId).catch(() => {
+        // Игнорируем ошибки удаления в фоне
+      });
+    }
+    
+    return message;
+  }
+
+  /**
+   * Удаление старых сообщений меню (неблокирующее)
+   * Удаляет все сообщения кроме самого последнего
+   */
+  private async deleteOldMenuMessages(
+    ctx: Scenes.SceneContext,
+    chatId: number,
+  ): Promise<void> {
+    // Получаем все сообщения, отсортированные по createdAt (самое новое первое)
+    const allMessages = await this.messageStorageProvider.getAllMessageByType(chatId, MessageType.MENU);
+
+    // Если сообщений меньше 2, нечего удалять (оставляем последнее)
+    if (allMessages.length <= 1) {
+      return;
+    }
+
+    // Берем все сообщения кроме первого (самого последнего)
+    const oldMessages = allMessages.slice(1);
+    const oldMessageIds = oldMessages.map((msg) => msg.messageId);
+
+    if (oldMessageIds.length) {
+      // Удаляем из БД одним запросом
+      await this.messageStorageProvider.deleteMessagesByIds(chatId, oldMessageIds);
+      
+      // Удаляем из Telegram параллельно (игнорируем ошибки)
+      await Promise.all(
+        oldMessageIds.map((msgId) =>
+          ctx.deleteMessage(msgId).catch(() => {
+            // Игнорируем ошибки удаления (сообщение уже удалено или не существует)
+          })
+        )
+      );
+    }
+  }
+
+  /**
+   * Получить chatId из контекста (переиспользуемый метод)
+   */
+  private getChatId(ctx: Scenes.SceneContext): number | null {
     const chatId: number =
       (ctx.update as any)?.message?.chat?.id ||
       (ctx.update as any)?.callback_query?.message?.chat?.id ||
       (ctx as any).from?.id ||
       (ctx as any).chat?.id;
 
-    if (chatId && message?.message_id) {
-      // Оптимизированное удаление: получаем только messageIds, удаляем из БД одним запросом, из Telegram - параллельно
-      const messageIds = await this.messageStorageProvider.getMessageIdsByType(chatId, MessageType.MENU);
-
-      if (messageIds.length) {
-        // Удаляем из БД одним запросом
-        await this.messageStorageProvider.deleteMessagesByIds(chatId, messageIds);
-        
-        // Удаляем из Telegram параллельно (игнорируем ошибки)
-        await Promise.all(
-          messageIds.map((msgId) =>
-            ctx.deleteMessage(msgId).catch(() => {
-              // Игнорируем ошибки удаления (сообщение уже удалено или не существует)
-            })
-          )
-        );
-      }
-
-      await this.messageStorageProvider.saveMessage(chatId, message.message_id, MessageType.MENU);
-    }
+    return chatId || null;
   }
 }

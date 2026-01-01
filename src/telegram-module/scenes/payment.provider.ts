@@ -5,15 +5,18 @@ import { Scenes } from 'telegraf';
 import { TARIFFS, getTariffById } from '../constants/tariffs';
 import { LoggerProvider } from 'src/logger-module/logger.provider';
 import { escapeText } from '../libs/text-format';
+import { ESubscriptionType } from 'src/subscription-module/constants/types';
+import { MessageStorageProvider } from 'src/message-storage-module/message-storage.provider';
 
 import type { TMessageType } from '../types/message';
-import { ESubscriptionType } from 'src/subscription-module/constants/types';
+import { MessageType } from 'src/message-storage-module/message-storage.model';
 
 @Scene('PAYMENT_SCENE_ID')
 export class PaymentProvider {
   constructor(
     private subscriptionProvider: SubscriptionProvider,
     private logger: LoggerProvider,
+    private messageStorageProvider: MessageStorageProvider,
   ) {}
 
   @SceneEnter()
@@ -22,19 +25,9 @@ export class PaymentProvider {
       await ctx.deleteMessage();
     } catch (e) {}
 
-    await ctx.replyWithMarkdownV2('🎛️', {
-      reply_markup: {
-        keyboard: [[{ text: '📱️ Меню' }]],
-        resize_keyboard: true,
-        one_time_keyboard: false,
-      },
-    });
+    await this.sendMenuKeyboard(ctx, [['📱️ Меню']]);
     
-    const chatId = 
-      ctx.update?.callback_query?.message?.chat?.id ||
-      ctx.update?.message?.chat?.id ||
-      ctx.from?.id ||
-      ctx.chat?.id;
+    const chatId = this.getChatId(ctx);
 
     if (!chatId) {
       this.logger.error(`${this.constructor.name} onSceneEnter: chatId is undefined`);
@@ -166,5 +159,81 @@ export class PaymentProvider {
 
       return;
     }
+  }
+
+  private async sendMenuKeyboard(
+    ctx: Scenes.SceneContext,
+    buttons: string[][],
+  ): Promise<any> {
+    const message = await ctx.replyWithMarkdownV2('🎛️', {
+      reply_markup: {
+        keyboard: buttons.map((row) => row.map((text) => ({ text }))),
+        resize_keyboard: true,
+        one_time_keyboard: false,
+      },
+    });
+
+    const chatId = this.getChatId(ctx);
+
+    if (chatId && message?.message_id) {
+      // Сначала сохраняем новое сообщение (критично)
+      await this.messageStorageProvider.saveMessage(chatId, message.message_id, MessageType.MENU);
+      
+      // Удаление старых сообщений делаем неблокирующим (fire-and-forget)
+      // Это не блокирует ответ пользователю
+      this.deleteOldMenuMessages(ctx, chatId).catch(() => {
+        // Игнорируем ошибки удаления в фоне
+      });
+    }
+    
+    return message;
+  }
+
+  /**
+   * Удаление старых сообщений меню (неблокирующее)
+   * Удаляет все сообщения кроме самого последнего
+   */
+  private async deleteOldMenuMessages(
+    ctx: Scenes.SceneContext,
+    chatId: number,
+  ): Promise<void> {
+    // Получаем все сообщения, отсортированные по createdAt (самое новое первое)
+    const allMessages = await this.messageStorageProvider.getAllMessageByType(chatId, MessageType.MENU);
+
+    // Если сообщений меньше 2, нечего удалять (оставляем последнее)
+    if (allMessages.length <= 1) {
+      return;
+    }
+
+    // Берем все сообщения кроме первого (самого последнего)
+    const oldMessages = allMessages.slice(1);
+    const oldMessageIds = oldMessages.map((msg) => msg.messageId);
+
+    if (oldMessageIds.length) {
+      // Удаляем из БД одним запросом
+      await this.messageStorageProvider.deleteMessagesByIds(chatId, oldMessageIds);
+      
+      // Удаляем из Telegram параллельно (игнорируем ошибки)
+      await Promise.all(
+        oldMessageIds.map((msgId) =>
+          ctx.deleteMessage(msgId).catch(() => {
+            // Игнорируем ошибки удаления (сообщение уже удалено или не существует)
+          })
+        )
+      );
+    }
+  }
+
+  /**
+   * Получить chatId из контекста (переиспользуемый метод)
+   */
+  private getChatId(ctx: Scenes.SceneContext): number | null {
+    const chatId: number =
+      (ctx.update as any)?.message?.chat?.id ||
+      (ctx.update as any)?.callback_query?.message?.chat?.id ||
+      (ctx as any).from?.id ||
+      (ctx as any).chat?.id;
+
+    return chatId || null;
   }
 }
