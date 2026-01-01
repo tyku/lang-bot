@@ -25,7 +25,7 @@ export class PaymentProvider {
       await ctx.deleteMessage();
     } catch (e) {}
 
-    await this.sendMenuKeyboard(ctx, [['📱️ Меню']]);
+    // await this.sendMenuKeyboard(ctx, [['📱️ Меню']]);
     
     const chatId = this.getChatId(ctx);
 

@@ -52,24 +52,7 @@ function createRedisStore(redis: Redis, ttl = 86400) {
             // session(),
             session({ store: createRedisStore(redis) }),
             async (ctx, next) => {
-
-              // if (ctx.update.message?.text === '📚️ Меню') {
-              //   if (ctx.scene && typeof ctx.scene.leave === 'function') {
-              //     await ctx.scene.leave();
-              //   }
-              //   if (ctx.session && ctx.session.__scenes) {
-              //     delete ctx.session.__scenes;
-              //   }
-              //
-              //   console.log('===================923821', ctx.scene.enter);
-              //
-              //
-              //   if (ctx.scene && typeof ctx.scene.enter === 'function') {
-              //
-              //     ctx.scene.enter('MENU_SCENE_ID');
-              //   }
-              // }
-
+              // Обработка /start
               if (ctx.update.message?.text === '/start') {
                 if (ctx.scene && typeof ctx.scene.leave === 'function') {
                   await ctx.scene.leave();
@@ -78,7 +61,32 @@ function createRedisStore(redis: Redis, ttl = 86400) {
                   delete ctx.session.__scenes;
                 }
               }
-              return next();
+              
+              try {
+                return await next();
+              } catch (error: any) {
+                // Обработка устаревших callback_query (после перезапуска бота)
+                const errorMessage = error?.response?.description || error?.message || String(error);
+                const isCallbackQueryError = 
+                  ctx.update?.callback_query &&
+                  (errorMessage.includes('query is too old') ||
+                    errorMessage.includes('query ID is invalid') ||
+                    errorMessage.includes('QUERY_ID_INVALID') ||
+                    errorMessage.includes('Bad Request: query'));
+                
+                if (isCallbackQueryError) {
+                  try {
+                    // Отвечаем на устаревший callback_query, чтобы убрать "часики"
+                    await ctx.answerCbQuery('⚠️ Эта кнопка больше не активна. Используйте /start или меню 📱️');
+                  } catch (e) {
+                    // Игнорируем ошибки ответа на callback_query (например, если уже ответили)
+                  }
+                  return; // Не пробрасываем ошибку дальше
+                }
+                
+                // Пробрасываем другие ошибки дальше
+                throw error;
+              }
             },
           ],
           include: [TelegramModule],
