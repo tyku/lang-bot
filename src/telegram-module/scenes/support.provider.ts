@@ -30,11 +30,27 @@ export class SupportSceneProvider {
 
     if (!ticket) {
       await ctx.replyWithMarkdownV2(
-        escapeText(
-          'Вы в режиме поддержки.\n' +
-            'Опишите вашу проблему.\n' +
-            'Ответ может занять до 24 часов.',
+        escapeText( 'Опиши свою проблему или задай вопрос, и я передам его в службу поддержки.\n\n' +
+            'Обычно мы отвечаем в течение 24 часов. Спасибо за терпение! 💙',
         ),
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: '📋 История обращений',
+                  callback_data: 'support_view_history',
+                },
+              ],
+              [
+                {
+                  text: '⬅ Вернуться в меню',
+                  callback_data: 'support_back_to_menu',
+                },
+              ],
+            ],
+          },
+        },
       );
       return;
     }
@@ -73,6 +89,12 @@ export class SupportSceneProvider {
     await ctx.replyWithMarkdownV2(summaryText, {
       reply_markup: {
         inline_keyboard: [
+          [
+            {
+              text: '📋 История обращений',
+              callback_data: 'support_view_history',
+            },
+          ],
           [
             {
               text: '⬅ Вернуться в меню',
@@ -253,6 +275,111 @@ export class SupportSceneProvider {
         },
       },
     );
+  }
+
+  @Action('support_view_history')
+  async onViewHistory(@Ctx() ctx: Scenes.SceneContext & { update: { callback_query: any } }) {
+    const chatId = this.getChatId(ctx);
+    if (!chatId) {
+      await ctx.answerCbQuery('Ошибка');
+      return;
+    }
+
+    await ctx.answerCbQuery();
+
+    const answeredTickets = await this.supportProvider.getAnsweredTickets(chatId);
+
+    if (answeredTickets.length === 0) {
+      await ctx.replyWithMarkdownV2(
+        escapeText('У вас пока нет обращений с ответами поддержки.'),
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: '⬅ Вернуться в меню',
+                  callback_data: 'support_back_to_menu',
+                },
+              ],
+            ],
+          },
+        },
+      );
+      return;
+    }
+
+    const ticketsText = answeredTickets
+      .map((ticket, idx) => {
+        const ticketText =
+          `*Тикет №${ticket.ticketNumber}*\n\n` +
+          escapeText('Ваше обращение:\n') +
+          escapeText(`_${ticket.firstMessage}_`) +
+          '\n\n' +
+          escapeText('Ответ поддержки:\n') +
+          escapeText(`_${ticket.lastSupportResponse || 'Нет ответа'}_`);
+
+        return ticketText;
+      })
+      .join('\n\n' + escapeText('─'.repeat(20)) + '\n\n');
+
+    const messageText = `*История обращений*\n\n${ticketsText}`;
+
+    // Telegram has a message length limit of 4096 characters
+    if (messageText.length > 4000) {
+      // Split into multiple messages
+      const chunks: string[] = [];
+      let currentChunk = '*История обращений*\n\n';
+      
+      for (const ticket of answeredTickets) {
+        const ticketText =
+          `*Тикет №${ticket.ticketNumber}*\n\n` +
+          escapeText('Ваше обращение:\n') +
+          escapeText(`_${ticket.firstMessage}_`) +
+          '\n\n' +
+          escapeText('Ответ поддержки:\n') +
+          escapeText(`_${ticket.lastSupportResponse || 'Нет ответа'}_`);
+
+        const separator = '\n\n' + escapeText('─'.repeat(20)) + '\n\n';
+        if ((currentChunk + ticketText + separator).length > 4000) {
+          chunks.push(currentChunk);
+          currentChunk = ticketText + separator;
+        } else {
+          currentChunk += ticketText + separator;
+        }
+      }
+      
+      if (currentChunk) {
+        chunks.push(currentChunk);
+      }
+
+      for (let i = 0; i < chunks.length; i++) {
+        await ctx.replyWithMarkdownV2(chunks[i], {
+          reply_markup: i === chunks.length - 1 ? {
+            inline_keyboard: [
+              [
+                {
+                  text: '⬅ Вернуться в меню',
+                  callback_data: 'support_back_to_menu',
+                },
+              ],
+            ],
+          } : undefined,
+        });
+      }
+    } else {
+      await ctx.replyWithMarkdownV2(messageText, {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: '⬅ Вернуться в меню',
+                callback_data: 'support_back_to_menu',
+              },
+            ],
+          ],
+        },
+      });
+    }
   }
 
   @Action('support_back_to_menu')

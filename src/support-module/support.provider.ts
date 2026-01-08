@@ -108,5 +108,30 @@ export class SupportProvider {
       lastSupportResponse: lastSupportMessage?.text || null,
     };
   }
+
+  async getAnsweredTickets(chatId: number): Promise<Array<{
+    ticketNumber: number;
+    firstMessage: string;
+    lastSupportResponse: string | null;
+    createdAt: Date;
+  }>> {
+    const tickets = await this.supportRepo
+      .find({ chatId, status: 'answered' }, {}, { sort: { createdAt: -1 } })
+      .lean()
+      .exec();
+
+    return tickets.map((ticket) => {
+      const firstUserMessage = ticket.messages.find((m) => m.role === 'user');
+      const supportMessages = ticket.messages.filter((m) => m.role === 'support');
+      const lastSupportMessage = supportMessages[supportMessages.length - 1];
+
+      return {
+        ticketNumber: ticket.ticketNumber,
+        firstMessage: firstUserMessage?.text || '',
+        lastSupportResponse: lastSupportMessage?.text || null,
+        createdAt: (ticket as any).createdAt || new Date(),
+      };
+    });
+  }
 }
 

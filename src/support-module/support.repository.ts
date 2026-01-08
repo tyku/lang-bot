@@ -47,5 +47,13 @@ export class SupportRepository {
   deleteOne(filter: FilterQuery<SupportTicketDocument>): Promise<mongo.DeleteResult> {
     return this.model.deleteOne(filter);
   }
+
+  find(
+    filter: FilterQuery<SupportTicketDocument> = {},
+    projection?: ProjectionType<SupportTicketDocument>,
+    options?: QueryOptions<SupportTicketDocument>,
+  ) {
+    return this.model.find<SupportTicketDocument>(filter, projection, options);
+  }
 }
 
