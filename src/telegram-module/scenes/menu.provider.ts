@@ -51,7 +51,10 @@ export class MenuProvider {
                 text: '🈹 Промокод',
                 callback_data: 'promo_code',
               },
-              // { text: '🤝 Реферальная система', callback_data: 'referral' },
+              {
+                text: '📬 Поддержка',
+                callback_data: 'support',
+              },
             ],
             // [
               // {

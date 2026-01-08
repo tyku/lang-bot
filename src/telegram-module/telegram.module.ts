@@ -17,6 +17,8 @@ import { MessageCleanerService } from './message-cleaner.service';
 import { PaymentModule } from 'src/payments-module/payment.module';
 import { FeedbackModule } from '../feedback-module/feedback.module';
 import { MessageStorageModule } from '../message-storage-module/message-storage.module';
+import { SupportModule } from '../support-module/support.module';
+import { SupportSceneProvider } from './scenes/support.provider';
 
 @Module({
   imports: [
@@ -29,6 +31,7 @@ import { MessageStorageModule } from '../message-storage-module/message-storage.
     PaymentModule,
     FeedbackModule,
     MessageStorageModule,
+    SupportModule,
   ],
   providers: [
     MenuProvider,
@@ -39,6 +42,7 @@ import { MessageStorageModule } from '../message-storage-module/message-storage.
     PaymentProvider,
     PromocodeProvider,
     MessageCleanerService,
+    SupportSceneProvider,
   ],
 })
 export class TelegramModule {}

@@ -104,15 +104,11 @@ export class NewUserProvider {
                 text: '🈹 Промокод',
                 callback_data: 'promo_code',
               },
-              // { text: '🤝 Реферальная система', callback_data: 'referral' },
+              {
+                text: '📬 Поддержка',
+                callback_data: 'support',
+              },
             ],
-            // [
-            //   {
-            //     text: '📬 Поддержка',
-            //     url: 'https://t.me/RabbitHole_support',
-            //   },
-            //   // { text: '🤝 Реферальная система', callback_data: 'referral' },
-            // ],
           ],
         },
       },
