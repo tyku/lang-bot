@@ -11,6 +11,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import {
   NotificationSchedule,
   NotificationScheduleDocument,
+  DayOfWeek,
 } from './notification-schedule.model';
 
 @Injectable()
@@ -67,6 +68,13 @@ export class NotificationScheduleRepository {
 
   deleteOne(filter?: FilterQuery<NotificationScheduleDocument>): Promise<any> {
     return this.model.deleteOne(filter || {});
+  }
+
+  findActiveByDayOfWeek(dayOfWeek: DayOfWeek) {
+    return this.model.find<NotificationScheduleDocument>({
+      isActive: true,
+      daysOfWeek: dayOfWeek, // MongoDB автоматически найдет в массиве
+    });
   }
 }
 

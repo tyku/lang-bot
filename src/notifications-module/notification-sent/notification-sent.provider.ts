@@ -12,15 +12,16 @@ export class NotificationSentProvider {
     minute: number,
     dayOfWeek: number,
   ): Promise<boolean> {
-    // Нормализуем дату - используем начало дня для сравнения
+    // Нормализуем дату к началу дня в UTC для использования составного индекса
     const dateStart = new Date(scheduledDate);
-    dateStart.setHours(0, 0, 0, 0);
+    dateStart.setUTCHours(0, 0, 0, 0);
     
-    const dateEnd = new Date(scheduledDate);
-    dateEnd.setHours(23, 59, 59, 999);
+    const dateEnd = new Date(dateStart);
+    dateEnd.setUTCHours(23, 59, 59, 999);
 
-    // Проверяем, было ли отправлено напоминание сегодня в это время
-    const exists = await this.notificationSentRepository.findOne({
+    // Используем exists() для булевого результата (более эффективно, чем findOne)
+    // Проверяем с точной датой начала дня для использования составного индекса
+    const exists = await this.notificationSentRepository.exists({
       chatId,
       scheduledDate: {
         $gte: dateStart,

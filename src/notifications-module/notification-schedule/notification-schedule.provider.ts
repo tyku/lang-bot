@@ -27,6 +27,10 @@ export class NotificationScheduleProvider {
     return this.notificationScheduleRepository.find({ isActive: true });
   }
 
+  findActiveByDayOfWeek(dayOfWeek: DayOfWeek) {
+    return this.notificationScheduleRepository.findActiveByDayOfWeek(dayOfWeek);
+  }
+
   updateStatus(chatId: number, isActive: boolean) {
     return this.notificationScheduleRepository.updateOne(
       { chatId },

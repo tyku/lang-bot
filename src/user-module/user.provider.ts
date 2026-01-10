@@ -14,6 +14,13 @@ export class UserProvider {
     return this.userRepo.findOne({ chatId });
   }
 
+  async findByChatIds(chatIds: number[]): Promise<User[]> {
+    if (chatIds.length === 0) {
+      return [];
+    }
+    return this.userRepo.find({ chatId: { $in: chatIds } });
+  }
+
   async updateTimezone(chatId: number, timezone: string): Promise<User | null> {
     return this.userRepo.findOneAndUpdate({ chatId }, { timezone });
   }
