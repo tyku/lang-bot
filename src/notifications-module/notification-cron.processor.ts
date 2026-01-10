@@ -59,7 +59,7 @@ export class NotificationCronProcessor extends WorkerHost {
             // Сначала проверяем часы, затем минуты
             if (
               currentHour === time.hour &&
-              Math.abs(currentMinute - time.minute) <= 1
+              Math.abs(currentMinute - time.minute) <= 5
             ) {
               // Формируем дату для проверки отправки в часовом поясе пользователя
               // Создаем дату с указанным временем в часовом поясе пользователя

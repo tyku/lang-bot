@@ -260,12 +260,13 @@ export class NotificationScheduleSceneProvider {
       const selectedTimes = session.schedule.selectedTimes || [];
       const timeIndex = session.schedule.timeIndex || 0;
 
-      if (!selectedTimes[timeIndex]) {
-        selectedTimes[timeIndex] = { hour: 9, minute };
-      } else {
-        selectedTimes[timeIndex].minute = minute;
+      // Проверяем, что час уже выбран
+      if (!selectedTimes[timeIndex] || selectedTimes[timeIndex].hour === undefined) {
+        await ctx.reply('❌ Сначала выберите час, затем минуты');
+        return;
       }
 
+      selectedTimes[timeIndex].minute = minute;
       session.schedule.selectedTimes = selectedTimes;
       session.schedule.timeIndex = (timeIndex || 0) + 1;
       ctx.session = { ...ctx.session, schedule: session.schedule };
@@ -376,7 +377,8 @@ export class NotificationScheduleSceneProvider {
       return;
     }
 
-    const currentTime = selectedTimes[timeIndex] || { hour: 9, minute: 0 };
+    const currentTime = selectedTimes[timeIndex];
+    const selectedHour = currentTime?.hour;
 
     await ctx.reply(
       `⏰ Напоминание ${timeIndex + 1} из 3 (максимум)\n\n` +
@@ -388,7 +390,7 @@ export class NotificationScheduleSceneProvider {
               const row: InlineKeyboardButton[] = [];
               for (let j = 0; j < 4 && i * 4 + j < 24; j++) {
                 const hour = i * 4 + j;
-                const text = hour === currentTime.hour ? `✅ ${hour}` : String(hour);
+                const text = selectedHour !== undefined && hour === selectedHour ? `✅ ${hour}` : String(hour);
                 row.push({ text, callback_data: `hour:${hour}` });
               }
               return row;
@@ -410,7 +412,16 @@ export class NotificationScheduleSceneProvider {
     const session = ctx.session || {};
     const selectedTimes = session.schedule.selectedTimes || [];
     const timeIndex = session.schedule.timeIndex || 0;
-    const currentTime = selectedTimes[timeIndex] || { hour: 9, minute: 0 };
+    const currentTime = selectedTimes[timeIndex];
+
+    // Проверяем, что час выбран
+    if (!currentTime || currentTime.hour === undefined) {
+      await ctx.reply('❌ Сначала нужно выбрать час');
+      await this.showTimeSelection(ctx);
+      return;
+    }
+
+    const selectedMinute = currentTime.minute;
 
     await ctx.reply(
       `⏰ Напоминание ${timeIndex + 1} из 3\n` +
@@ -421,7 +432,7 @@ export class NotificationScheduleSceneProvider {
           inline_keyboard: [
             MINUTE_OPTIONS.map((minute) => ({
               text:
-                minute === currentTime.minute
+                selectedMinute !== undefined && minute === selectedMinute
                   ? `✅ ${String(minute).padStart(2, '0')}`
                   : String(minute).padStart(2, '0'),
               callback_data: `minute:${minute}`,
@@ -456,10 +467,19 @@ export class NotificationScheduleSceneProvider {
     const session = ctx.session || {};
     const selectedTimes = session.schedule.selectedTimes || [];
 
-    if (selectedTimes.length === 0) {
-      await ctx.reply('❌ Пожалуйста, выберите хотя бы одно время');
+    // Проверяем, что есть хотя бы одно полностью выбранное время (час и минуты)
+    const validTimes = selectedTimes.filter(
+      (time) => time.hour !== undefined && time.minute !== undefined
+    );
+
+    if (validTimes.length === 0) {
+      await ctx.reply('❌ Пожалуйста, выберите хотя бы одно полное время (час и минуты)');
       return;
     }
+
+    // Сохраняем только валидные времена
+    session.schedule.selectedTimes = validTimes;
+    ctx.session = { ...ctx.session, schedule: session.schedule };
 
     try {
       await ctx.deleteMessage();
@@ -475,12 +495,23 @@ export class NotificationScheduleSceneProvider {
     const selectedDays = session.schedule.selectedDays || [];
     const selectedTimes = session.schedule.selectedTimes || [];
 
+    // Фильтруем только полностью выбранные времена
+    const validTimes = selectedTimes.filter(
+      (time) => time.hour !== undefined && time.minute !== undefined
+    );
+
+    if (validTimes.length === 0) {
+      await ctx.reply('❌ Ошибка: нет полностью выбранного времени. Пожалуйста, выберите хотя бы одно время (час и минуты).');
+      await this.showTimeSelection(ctx);
+      return;
+    }
+
     const daysText = selectedDays
       .sort((a, b) => a - b)
       .map((d) => DAY_NAMES[d])
       .join(', ');
 
-    const timesText = selectedTimes
+    const timesText = validTimes
       .map((t) => `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`)
       .join(', ');
 
@@ -519,14 +550,19 @@ export class NotificationScheduleSceneProvider {
     const selectedDays = session.schedule.selectedDays || [];
     const selectedTimes = session.schedule.selectedTimes || [];
 
-    if (selectedDays.length === 0 || selectedTimes.length === 0) {
-      await ctx.reply('❌ Ошибка: не заполнены все поля');
+    // Фильтруем только полностью выбранные времена (с часом и минутами)
+    const validTimes = selectedTimes.filter(
+      (time) => time.hour !== undefined && time.minute !== undefined
+    );
+
+    if (selectedDays.length === 0 || validTimes.length === 0) {
+      await ctx.reply('❌ Ошибка: не заполнены все поля. Убедитесь, что выбраны дни и хотя бы одно полное время (час и минуты).');
       return;
     }
 
     // Сортируем дни и время
     const sortedDays = [...selectedDays].sort((a, b) => a - b);
-    const sortedTimes = [...selectedTimes].sort((a, b) => {
+    const sortedTimes = [...validTimes].sort((a, b) => {
       if (a.hour !== b.hour) return a.hour - b.hour;
       return a.minute - b.minute;
     });

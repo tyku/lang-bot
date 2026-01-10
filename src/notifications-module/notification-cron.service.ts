@@ -25,13 +25,13 @@ export class NotificationCronService implements OnModuleInit {
           {},
           {
             repeat: {
-              pattern: '*/5 * * * *', // Каждые 5 минут
+              pattern: '*/1 * * * *', // Каждые 5 минут
             },
             jobId: 'notification-cron-job',
           },
         );
 
-        this.logger.log('Notification cron job scheduled (every 5 minutes)');
+        this.logger.log('Notification cron job scheduled (every 1 minute)');
       } else {
         this.logger.log(
           'Notification cron job already exists, skipping creation',

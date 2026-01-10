@@ -16,14 +16,14 @@ import { UserModule } from '../user-module/user.module';
     NotificationScheduleModule,
     NotificationSentModule,
     UserModule,
-    // BullModule.registerQueue({
-    //   name: 'notification-cron',
-    // }),
+    BullModule.registerQueue({
+      name: 'notification-cron',
+    }),
     LoggerModule,
   ],
   providers: [
-    // NotificationCronProcessor,
-    // NotificationCronService,
+    NotificationCronProcessor,
+    NotificationCronService,
     NotificationSenderService,
   ],
   exports: [
