@@ -37,6 +37,8 @@ export class BroadcastAuthGuard implements CanActivate {
     );
     const [username, password] = credentials.split(':');
 
+
+    console.log("----------------", username, password, adminLogin, adminPassword);
     // Проверяем учетные данные
     if (username === adminLogin && password === adminPassword) {
       return true;
