@@ -9,6 +9,7 @@ import { TelegramModule } from './telegram-module/telegram.module';
 import { LoggerModule } from './logger-module/logger.module';
 import { ServicesModule } from './services/services.module';
 import { NotificationModule } from './notifications-module/notification.module';
+import { BroadcastModule } from './broadcast-module/broadcast.module';
 import { BullModule } from '@nestjs/bullmq';
 import Redis from 'ioredis';
 
@@ -116,6 +117,7 @@ function createRedisStore(redis: Redis, ttl = 86400) {
     ServicesModule,
     LoggerModule,
     NotificationModule,
+    BroadcastModule,
   ],
   controllers: [],
   providers: [],

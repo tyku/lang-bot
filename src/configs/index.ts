@@ -2,6 +2,7 @@ import telegramConfig from './telegram.config';
 import mongoConfig from './mongo.config';
 import redisConfig from './redis.config';
 import openRouterConfig from './open-router.config';
+import broadcastConfig from './broadcast.config';
 import * as process from 'node:process';
 
 export default () => ({
@@ -12,4 +13,5 @@ export default () => ({
   ...mongoConfig(),
   ...telegramConfig(),
   ...openRouterConfig(),
+  ...broadcastConfig(),
 });

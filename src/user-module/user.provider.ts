@@ -24,4 +24,13 @@ export class UserProvider {
   async updateTimezone(chatId: number, timezone: string): Promise<User | null> {
     return this.userRepo.findOneAndUpdate({ chatId }, { timezone });
   }
+
+  async findAllChatIds(): Promise<number[]> {
+    const users = await this.userRepo.find({}, { chatId: 1, _id: 0 });
+    return users.map((user) => user.chatId).filter((id) => id != null);
+  }
+
+  async findAll(): Promise<User[]> {
+    return this.userRepo.find();
+  }
 }
