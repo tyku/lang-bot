@@ -19,6 +19,9 @@ import { FeedbackModule } from '../feedback-module/feedback.module';
 import { MessageStorageModule } from '../message-storage-module/message-storage.module';
 import { SupportModule } from '../support-module/support.module';
 import { SupportSceneProvider } from './scenes/support.provider';
+import { NotificationModule } from '../notifications-module/notification.module';
+import { NotificationScheduleSceneProvider } from './scenes/notification-schedule.scene';
+import { SubscriptionProvider } from './scenes/subscription.provider';
 
 @Module({
   imports: [
@@ -32,6 +35,7 @@ import { SupportSceneProvider } from './scenes/support.provider';
     FeedbackModule,
     MessageStorageModule,
     SupportModule,
+    NotificationModule,
   ],
   providers: [
     MenuProvider,
@@ -43,6 +47,8 @@ import { SupportSceneProvider } from './scenes/support.provider';
     PromocodeProvider,
     MessageCleanerService,
     SupportSceneProvider,
+    NotificationScheduleSceneProvider,
+    SubscriptionProvider,
   ],
 })
 export class TelegramModule {}

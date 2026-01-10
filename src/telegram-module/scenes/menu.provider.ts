@@ -56,6 +56,12 @@ export class MenuProvider {
                 callback_data: 'support',
               },
             ],
+            [
+              {
+                text: '⏰ Напоминания',
+                callback_data: 'notification_schedule',
+              },
+            ],
             // [
               // {
                 // text: '📬 Поддержка',

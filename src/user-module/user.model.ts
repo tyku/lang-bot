@@ -13,6 +13,9 @@ export class User {
 
   @Prop()
   firstName?: string;
+
+  @Prop({ default: 'Europe/Moscow' })
+  timezone?: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

@@ -35,4 +35,12 @@ export class UserRepository {
   ) {
     return this.model.findOne<UserDocument>(filter, projection, options);
   }
+
+  find(
+    filter?: FilterQuery<UserDocument>,
+    projection?: ProjectionType<UserDocument>,
+    options?: QueryOptions<UserDocument>,
+  ) {
+    return this.model.find<UserDocument>(filter || {}, projection, options);
+  }
 }

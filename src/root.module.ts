@@ -8,6 +8,8 @@ import configs from './configs';
 import { TelegramModule } from './telegram-module/telegram.module';
 import { LoggerModule } from './logger-module/logger.module';
 import { ServicesModule } from './services/services.module';
+import { NotificationModule } from './notifications-module/notification.module';
+import { BullModule } from '@nestjs/bullmq';
 import Redis from 'ioredis';
 
 function createRedisStore(redis: Redis, ttl = 86400) {
@@ -101,8 +103,19 @@ function createRedisStore(redis: Redis, ttl = 86400) {
       }),
       inject: [ConfigService],
     }),
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        connection: {
+          host: configService.get<string>('redis.host') || 'localhost',
+          port: configService.get<number>('redis.port') || 6379,
+          password: configService.get<string>('redis.password'),
+        },
+      }),
+    }),
     ServicesModule,
     LoggerModule,
+    NotificationModule,
   ],
   controllers: [],
   providers: [],

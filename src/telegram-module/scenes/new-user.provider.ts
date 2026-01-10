@@ -109,6 +109,12 @@ export class NewUserProvider {
                 callback_data: 'support',
               },
             ],
+            [
+              {
+                text: '⏰ Напоминания',
+                callback_data: 'notification_schedule',
+              },
+            ],
           ],
         },
       },
