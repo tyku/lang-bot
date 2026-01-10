@@ -9,11 +9,13 @@ import { NotificationCronProcessor } from './notification-cron.processor';
 import { NotificationCronService } from './notification-cron.service';
 import { NotificationSenderService } from './notification-sender.service';
 import { LoggerModule } from '../logger-module/logger.module';
+import { UserModule } from '../user-module/user.module';
 
 @Module({
   imports: [
     NotificationScheduleModule,
     NotificationSentModule,
+    UserModule,
     // BullModule.registerQueue({
     //   name: 'notification-cron',
     // }),

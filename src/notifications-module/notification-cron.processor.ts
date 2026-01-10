@@ -1,11 +1,13 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Injectable } from '@nestjs/common';
+import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { NotificationScheduleProvider } from './notification-schedule/notification-schedule.provider';
 import { NotificationSentProvider } from './notification-sent/notification-sent.provider';
 import { NotificationSenderService } from './notification-sender.service';
 import { LoggerProvider } from '../logger-module/logger.provider';
 import { DayOfWeek } from './notification-schedule/notification-schedule.model';
+import { UserProvider } from '../user-module/user.provider';
 
 @Processor('notification-cron')
 @Injectable()
@@ -14,6 +16,7 @@ export class NotificationCronProcessor extends WorkerHost {
     private notificationScheduleProvider: NotificationScheduleProvider,
     private notificationSentProvider: NotificationSentProvider,
     private notificationSenderService: NotificationSenderService,
+    private userProvider: UserProvider,
     private logger: LoggerProvider,
   ) {
     super();
@@ -22,11 +25,6 @@ export class NotificationCronProcessor extends WorkerHost {
   async process(job: Job): Promise<void> {
     try {
       this.logger.log('Starting notification cron job');
-
-      const now = new Date();
-      const currentDayOfWeek = now.getDay() as DayOfWeek; // 0 = Sunday, 1 = Monday, etc.
-      const currentHour = now.getHours();
-      const currentMinute = now.getMinutes();
 
       // Получаем все активные расписания
       const activeSchedules =
@@ -39,6 +37,17 @@ export class NotificationCronProcessor extends WorkerHost {
       // Проходим по каждому расписанию
       for (const schedule of activeSchedules) {
         try {
+          // Получаем пользователя для определения его часового пояса
+          const user = await this.userProvider.findByChatId(schedule.chatId);
+          const timezone = user?.timezone || 'Europe/Moscow';
+
+          // Получаем текущее время в часовом поясе пользователя
+          const now = new Date();
+          const userNow = toZonedTime(now, timezone);
+          const currentDayOfWeek = userNow.getDay() as DayOfWeek; // 0 = Sunday, 1 = Monday, etc.
+          const currentHour = userNow.getHours();
+          const currentMinute = userNow.getMinutes();
+
           // Проверяем, соответствует ли текущий день недели расписанию
           if (!schedule.daysOfWeek.includes(currentDayOfWeek)) {
             continue;
@@ -52,10 +61,16 @@ export class NotificationCronProcessor extends WorkerHost {
               currentHour === time.hour &&
               Math.abs(currentMinute - time.minute) <= 1
             ) {
-              // Формируем дату для проверки отправки (сегодня, с точным временем расписания)
-              const scheduledDate = new Date(now);
-              scheduledDate.setHours(time.hour, time.minute, 0, 0);
-              scheduledDate.setSeconds(0, 0);
+              // Формируем дату для проверки отправки в часовом поясе пользователя
+              // Создаем дату с указанным временем в часовом поясе пользователя
+              const nowInUserTz = toZonedTime(new Date(), timezone);
+              const userScheduledDate = new Date(nowInUserTz);
+              userScheduledDate.setHours(time.hour, time.minute, 0, 0);
+              userScheduledDate.setSeconds(0, 0);
+              userScheduledDate.setMilliseconds(0);
+
+              // Конвертируем в UTC для хранения в базе
+              const scheduledDate = fromZonedTime(userScheduledDate, timezone);
 
               // Проверяем, было ли уже отправлено напоминание на сегодня в это время
               const wasSent = await this.notificationSentProvider.wasSent(
@@ -83,7 +98,7 @@ export class NotificationCronProcessor extends WorkerHost {
                   );
 
                   this.logger.log(
-                    `Notification sent to chatId: ${schedule.chatId} at ${String(time.hour).padStart(2, '0')}:${String(time.minute).padStart(2, '0')}`,
+                    `Notification sent to chatId: ${schedule.chatId} at ${String(time.hour).padStart(2, '0')}:${String(time.minute).padStart(2, '0')} (timezone: ${timezone})`,
                   );
                 }
               } else {

@@ -30,6 +30,7 @@
     "@telegraf/session": "^2.0.0-beta.7",
     "axios": "^1.12.2",
     "bullmq": "^5.66.4",
+    "date-fns-tz": "^3.2.0",
     "ioredis": "^5.8.1",
     "mongoose": "^8.18.3",
     "nestjs-telegraf": "^2.9.1",

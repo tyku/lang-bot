@@ -15,6 +15,7 @@ import {
   ScheduleTime,
 } from '../../notifications-module/notification-schedule/notification-schedule.model';
 import { escapeText } from '../libs/text-format';
+import { UserProvider } from '../../user-module/user.provider';
 
 const DAY_NAMES = {
   [DayOfWeek.MONDAY]: 'Понедельник',
@@ -33,16 +34,32 @@ type TSession = {
   schedule: {
     selectedDays?: DayOfWeek[];
     selectedTimes?: ScheduleTime[];
-    currentStep?: 'days' | 'hours' | 'minutes' | 'confirm';
+    currentStep?: 'days' | 'hours' | 'minutes' | 'confirm' | 'timezone';
     timeIndex?: number;
     selectingHour?: boolean;
   }
 };
 
+// Популярные часовые пояса России
+const COMMON_TIMEZONES = [
+  { tz: 'Europe/Kaliningrad', name: 'Калининград (UTC+2)' },
+  { tz: 'Europe/Moscow', name: 'Москва (UTC+3)' },
+  { tz: 'Europe/Samara', name: 'Самара (UTC+4)' },
+  { tz: 'Asia/Yekaterinburg', name: 'Екатеринбург (UTC+5)' },
+  { tz: 'Asia/Omsk', name: 'Омск (UTC+6)' },
+  { tz: 'Asia/Krasnoyarsk', name: 'Красноярск (UTC+7)' },
+  { tz: 'Asia/Irkutsk', name: 'Иркутск (UTC+8)' },
+  { tz: 'Asia/Chita', name: 'Чита (UTC+9)' },
+  { tz: 'Asia/Vladivostok', name: 'Владивосток (UTC+10)' },
+  { tz: 'Asia/Magadan', name: 'Магадан (UTC+11)' },
+  { tz: 'Asia/Kamchatka', name: 'Камчатка (UTC+12)' },
+];
+
 @Scene('NOTIFICATION_SCHEDULE_SCENE_ID')
 export class NotificationScheduleSceneProvider {
   constructor(
     private notificationScheduleProvider: NotificationScheduleProvider,
+    private userProvider: UserProvider,
   ) {}
 
   @SceneEnter()
@@ -61,6 +78,11 @@ export class NotificationScheduleSceneProvider {
       chatId,
     );
 
+    // Получаем пользователя для отображения часового пояса
+    const user = await this.userProvider.findByChatId(chatId);
+    const timezone = user?.timezone || 'Europe/Moscow';
+    const timezoneName = COMMON_TIMEZONES.find(t => t.tz === timezone)?.name || timezone;
+
     if (existingSchedule) {
       const daysText = existingSchedule.daysOfWeek
         .map((d) => DAY_NAMES[d])
@@ -75,6 +97,7 @@ export class NotificationScheduleSceneProvider {
         `📅 Текущее расписание:\n\n` +
         `Дни: ${daysText}\n` +
         `Время: ${timesText}\n` +
+        `Часовой пояс: ${timezoneName}\n` +
         `Статус: ${statusText}\n\n` +
         `Что вы хотите сделать?`,
         {
@@ -84,7 +107,28 @@ export class NotificationScheduleSceneProvider {
                 { text: '✏️ Изменить', callback_data: 'edit' },
                 { text: existingSchedule.isActive ? '⏸ Выключить' : '▶️ Включить', callback_data: 'toggle' },
               ],
+              [{ text: '🌍 Изменить часовой пояс', callback_data: 'change_timezone' }],
               [{ text: '🗑 Удалить', callback_data: 'delete' }],
+              [{ text: '❌ Отмена', callback_data: 'cancel' }],
+            ],
+          },
+        },
+      );
+      return;
+    }
+
+    // Проверяем, нужно ли сначала выбрать часовой пояс
+    // Если у пользователя дефолтный часовой пояс, предлагаем выбрать свой
+    if (!user || timezone === 'Europe/Moscow') {
+      // Предлагаем выбрать часовой пояс перед настройкой расписания
+      await ctx.reply(
+        `🌍 Перед настройкой напоминаний, пожалуйста, выберите ваш часовой пояс:\n\n` +
+        `Это нужно, чтобы напоминания приходили в правильное время в вашем регионе.`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '✅ Выбрать часовой пояс', callback_data: 'setup_timezone' }],
+              [{ text: '⏭ Пропустить (Москва, UTC+3)', callback_data: 'skip_timezone_setup' }],
               [{ text: '❌ Отмена', callback_data: 'cancel' }],
             ],
           },
@@ -248,6 +292,44 @@ export class NotificationScheduleSceneProvider {
             },
           },
         );
+      }
+      return;
+    }
+
+    if (callbackData.startsWith('timezone:')) {
+      const isSetup = callbackData.endsWith(':setup');
+      const selectedTimezone = isSetup 
+        ? callbackData.replace('timezone:', '').replace(':setup', '')
+        : callbackData.replace('timezone:', '');
+      const chatId = ctx.update?.callback_query?.message?.chat?.id;
+
+      if (!chatId) {
+        await ctx.reply('Ошибка: не удалось определить chatId');
+        return;
+      }
+
+      await this.userProvider.updateTimezone(chatId, selectedTimezone);
+      const timezoneName = COMMON_TIMEZONES.find(t => t.tz === selectedTimezone)?.name || selectedTimezone;
+
+      try {
+        await ctx.deleteMessage();
+      } catch (e) {}
+
+      if (isSetup) {
+        // Если это первичная настройка, продолжаем создание расписания
+        await ctx.reply(`✅ Часовой пояс установлен: ${timezoneName}\n\nТеперь давайте настроим расписание напоминаний.`);
+        
+        ctx.session.schedule = {
+          selectedDays: [],
+          selectedTimes: [],
+          currentStep: 'days',
+        };
+
+        await this.showDaysSelection(ctx);
+      } else {
+        // Если это изменение существующего часового пояса, возвращаемся к началу сцены
+        await ctx.reply(`✅ Часовой пояс изменен на: ${timezoneName}`);
+        await ctx.scene.enter('NOTIFICATION_SCHEDULE_SCENE_ID');
       }
       return;
     }
@@ -568,7 +650,123 @@ export class NotificationScheduleSceneProvider {
     await ctx.scene.enter('MENU_SCENE_ID');
   }
 
-  @Action('notification_days_cancel')
+  @Action('setup_timezone')
+  async onSetupTimezone(@Ctx() ctx: Scenes.SceneContext & { update?: { callback_query?: any } }) {
+    try {
+      await ctx.answerCbQuery();
+    } catch (e) {}
+
+    const chatId = ctx.update?.callback_query?.message?.chat?.id;
+
+    if (!chatId) {
+      await ctx.reply('Ошибка: не удалось определить chatId');
+      return;
+    }
+
+    const user = await this.userProvider.findByChatId(chatId);
+    const currentTimezone = user?.timezone || 'Europe/Moscow';
+
+    const buttons: InlineKeyboardButton[][] = [];
+    
+    // Группируем часовые пояса по 2 в ряд
+    for (let i = 0; i < COMMON_TIMEZONES.length; i += 2) {
+      const row: InlineKeyboardButton[] = [];
+      const tz1 = COMMON_TIMEZONES[i];
+      const tz2 = COMMON_TIMEZONES[i + 1];
+
+      const tz1Text = currentTimezone === tz1.tz ? `✅ ${tz1.name}` : tz1.name;
+      row.push({ text: tz1Text, callback_data: `timezone:${tz1.tz}:setup` });
+
+      if (tz2) {
+        const tz2Text = currentTimezone === tz2.tz ? `✅ ${tz2.name}` : tz2.name;
+        row.push({ text: tz2Text, callback_data: `timezone:${tz2.tz}:setup` });
+      }
+
+      buttons.push(row);
+    }
+
+    buttons.push([{ text: '❌ Отмена', callback_data: 'cancel' }]);
+
+    try {
+      await ctx.deleteMessage();
+    } catch (e) {}
+
+    await ctx.reply('🌍 Выберите ваш часовой пояс:', {
+      reply_markup: {
+        inline_keyboard: buttons,
+      },
+    });
+  }
+
+  @Action('skip_timezone_setup')
+  async onSkipTimezoneSetup(@Ctx() ctx: Scenes.SceneContext & { session?: TSession; update?: { callback_query?: any } }) {
+    try {
+      await ctx.answerCbQuery();
+    } catch (e) {}
+
+    try {
+      await ctx.deleteMessage();
+    } catch (e) {}
+
+    // Инициализируем новое расписание с дефолтным часовым поясом
+    ctx.session.schedule = {
+      selectedDays: [],
+      selectedTimes: [],
+      currentStep: 'days',
+    };
+
+    await this.showDaysSelection(ctx);
+  }
+
+  @Action('change_timezone')
+  async onChangeTimezone(@Ctx() ctx: Scenes.SceneContext & { update?: { callback_query?: any } }) {
+    try {
+      await ctx.answerCbQuery();
+    } catch (e) {}
+
+    const chatId = ctx.update?.callback_query?.message?.chat?.id;
+
+    if (!chatId) {
+      await ctx.reply('Ошибка: не удалось определить chatId');
+      return;
+    }
+
+    const user = await this.userProvider.findByChatId(chatId);
+    const currentTimezone = user?.timezone || 'Europe/Moscow';
+
+    const buttons: InlineKeyboardButton[][] = [];
+    
+    // Группируем часовые пояса по 2 в ряд
+    for (let i = 0; i < COMMON_TIMEZONES.length; i += 2) {
+      const row: InlineKeyboardButton[] = [];
+      const tz1 = COMMON_TIMEZONES[i];
+      const tz2 = COMMON_TIMEZONES[i + 1];
+
+      const tz1Text = currentTimezone === tz1.tz ? `✅ ${tz1.name}` : tz1.name;
+      row.push({ text: tz1Text, callback_data: `timezone:${tz1.tz}` });
+
+      if (tz2) {
+        const tz2Text = currentTimezone === tz2.tz ? `✅ ${tz2.name}` : tz2.name;
+        row.push({ text: tz2Text, callback_data: `timezone:${tz2.tz}` });
+      }
+
+      buttons.push(row);
+    }
+
+    buttons.push([{ text: '❌ Отмена', callback_data: 'cancel' }]);
+
+    try {
+      await ctx.deleteMessage();
+    } catch (e) {}
+
+    await ctx.reply('🌍 Выберите часовой пояс:', {
+      reply_markup: {
+        inline_keyboard: buttons,
+      },
+    });
+  }
+
+  @Action(['notification_days_cancel', 'cancel'])
   async onCancel(@Ctx() ctx: Scenes.SceneContext) {
     try {
       await ctx.answerCbQuery();
