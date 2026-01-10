@@ -5,6 +5,7 @@ import { BroadcastProvider } from './broadcast.provider';
 import { BroadcastSentProvider } from './broadcast-sent.provider';
 import { UserProvider } from '../user-module/user.provider';
 import { LoggerProvider } from '../logger-module/logger.provider';
+import { escapeText } from 'src/telegram-module/libs/text-format';
 
 @Injectable()
 export class BroadcastService implements OnModuleInit {
@@ -83,7 +84,7 @@ export class BroadcastService implements OnModuleInit {
             }
 
             // Отправляем сообщение
-            await this.bot.telegram.sendMessage(chatId, broadcast.content);
+            await this.bot.telegram.sendMessage(chatId, escapeText(broadcast.content), { parse_mode: 'MarkdownV2' });
 
             // Помечаем как отправленное
             await this.broadcastSentProvider.markAsSent(
