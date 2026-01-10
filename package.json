@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@nestjs/axios": "^4.0.1",
+    "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",
@@ -28,6 +29,7 @@
     "@nestjs/platform-express": "^11.0.1",
     "@telegraf/session": "^2.0.0-beta.7",
     "axios": "^1.12.2",
+    "bullmq": "^5.66.4",
     "ioredis": "^5.8.1",
     "mongoose": "^8.18.3",
     "nestjs-telegraf": "^2.9.1",

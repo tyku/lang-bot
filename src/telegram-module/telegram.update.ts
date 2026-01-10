@@ -59,6 +59,20 @@ export class TelegramUpdate {
     await ctx.scene.enter('SUPPORT_SCENE_ID');
   }
 
+  @Action('notification_schedule')
+  async onNotificationSchedule(@Ctx() ctx: Scenes.SceneContext & { update: { callback_query: any } }) {
+    try {
+      await ctx.answerCbQuery();
+      await ctx.deleteMessage();
+    } catch (e) {}
+
+    try {
+      await ctx.scene.leave();
+    } catch (e) {}
+
+    await ctx.scene.enter('NOTIFICATION_SCHEDULE_SCENE_ID');
+  }
+
   @Action(/^trainer:.+$/)
   async onTrainer(
     @Ctx() ctx: Scenes.SceneContext & { update: { callback_query: any } },
