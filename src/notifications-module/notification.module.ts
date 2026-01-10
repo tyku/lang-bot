@@ -14,14 +14,14 @@ import { LoggerModule } from '../logger-module/logger.module';
   imports: [
     NotificationScheduleModule,
     NotificationSentModule,
-    BullModule.registerQueue({
-      name: 'notification-cron',
-    }),
+    // BullModule.registerQueue({
+    //   name: 'notification-cron',
+    // }),
     LoggerModule,
   ],
   providers: [
-    NotificationCronProcessor,
-    NotificationCronService,
+    // NotificationCronProcessor,
+    // NotificationCronService,
     NotificationSenderService,
   ],
   exports: [

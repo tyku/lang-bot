@@ -70,6 +70,7 @@ export class TelegramUpdate {
       await ctx.scene.leave();
     } catch (e) {}
 
+    // await ctx.scene.enter('NOTIFICATION_SCHEDULE_SCENE_ID');
     await ctx.scene.enter('NOTIFICATION_SCHEDULE_SCENE_ID');
   }
 

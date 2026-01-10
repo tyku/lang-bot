@@ -1,6 +1,8 @@
 import {
   Action,
   Ctx,
+  Next,
+  On,
   Scene,
   SceneEnter,
   SceneLeave,
@@ -28,15 +30,17 @@ const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => i);
 const MINUTE_OPTIONS = [0, 15, 30, 45];
 
 type TSession = {
-  selectedDays?: DayOfWeek[];
-  selectedTimes?: ScheduleTime[];
-  currentStep?: 'days' | 'hours' | 'minutes' | 'confirm';
-  timeIndex?: number;
-  selectingHour?: boolean;
+  schedule: {
+    selectedDays?: DayOfWeek[];
+    selectedTimes?: ScheduleTime[];
+    currentStep?: 'days' | 'hours' | 'minutes' | 'confirm';
+    timeIndex?: number;
+    selectingHour?: boolean;
+  }
 };
 
 @Scene('NOTIFICATION_SCHEDULE_SCENE_ID')
-export class NotificationScheduleScene {
+export class NotificationScheduleSceneProvider {
   constructor(
     private notificationScheduleProvider: NotificationScheduleProvider,
   ) {}
@@ -53,44 +57,44 @@ export class NotificationScheduleScene {
     }
 
     // Проверяем существующее расписание
-    // const existingSchedule = await this.notificationScheduleProvider.findByChatId(
-    //   chatId,
-    // );
+    const existingSchedule = await this.notificationScheduleProvider.findByChatId(
+      chatId,
+    );
 
-    // if (existingSchedule) {
-    //   const daysText = existingSchedule.daysOfWeek
-    //     .map((d) => DAY_NAMES[d])
-    //     .join(', ');
-    //   const timesText = existingSchedule.times
-    //     .map((t) => `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`)
-    //     .join(', ');
+    if (existingSchedule) {
+      const daysText = existingSchedule.daysOfWeek
+        .map((d) => DAY_NAMES[d])
+        .join(', ');
+      const timesText = existingSchedule.times
+        .map((t) => `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`)
+        .join(', ');
 
-    //   const statusText = existingSchedule.isActive ? '✅ Включено' : '❌ Выключено';
+      const statusText = existingSchedule.isActive ? '✅ Включено' : '❌ Выключено';
 
-    //   await ctx.reply(
-    //     `📅 Текущее расписание:\n\n` +
-    //     `Дни: ${daysText}\n` +
-    //     `Время: ${timesText}\n` +
-    //     `Статус: ${statusText}\n\n` +
-    //     `Что вы хотите сделать?`,
-    //     {
-    //       reply_markup: {
-    //         inline_keyboard: [
-    //           [
-    //             { text: '✏️ Изменить', callback_data: 'edit' },
-    //             { text: existingSchedule.isActive ? '⏸ Выключить' : '▶️ Включить', callback_data: 'toggle' },
-    //           ],
-    //           [{ text: '🗑 Удалить', callback_data: 'delete' }],
-    //           [{ text: '❌ Отмена', callback_data: 'cancel' }],
-    //         ],
-    //       },
-    //     },
-    //   );
-    //   return;
-    // }
+      await ctx.reply(
+        `📅 Текущее расписание:\n\n` +
+        `Дни: ${daysText}\n` +
+        `Время: ${timesText}\n` +
+        `Статус: ${statusText}\n\n` +
+        `Что вы хотите сделать?`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: '✏️ Изменить', callback_data: 'edit' },
+                { text: existingSchedule.isActive ? '⏸ Выключить' : '▶️ Включить', callback_data: 'toggle' },
+              ],
+              [{ text: '🗑 Удалить', callback_data: 'delete' }],
+              [{ text: '❌ Отмена', callback_data: 'cancel' }],
+            ],
+          },
+        },
+      );
+      return;
+    }
 
     // Инициализируем новое расписание
-    ctx.session = {
+    ctx.session.schedule = {
       selectedDays: [],
       selectedTimes: [],
       currentStep: 'days',
@@ -103,7 +107,7 @@ export class NotificationScheduleScene {
     ctx: Scenes.SceneContext & { session?: TSession },
   ) {
     const session = ctx.session || {};
-    const selectedDays = session.selectedDays || [];
+    const selectedDays = session.schedule.selectedDays || [];
 
     const buttons: InlineKeyboardButton[][] = [];
     const allDays = [
@@ -117,179 +121,173 @@ export class NotificationScheduleScene {
     ];
 
     // Создаем кнопки для выбора дней
-    // for (let i = 0; i < allDays.length; i += 2) {
-    //   const day1 = allDays[i];
-    //   const day2 = allDays[i + 1];
-    //   const row: InlineKeyboardButton[] = [];
+    for (let i = 0; i < allDays.length; i += 2) {
+      const day1 = allDays[i];
+      const day2 = allDays[i + 1];
+      const row: InlineKeyboardButton[] = [];
 
-    //   const day1Text = selectedDays.includes(day1) ? `✅ ${DAY_NAMES[day1]}` : DAY_NAMES[day1];
-    //   row.push({ text: day1Text, callback_data: `day:${day1}` });
+      const day1Text = selectedDays.includes(day1) ? `✅ ${DAY_NAMES[day1]}` : DAY_NAMES[day1];
+      row.push({ text: day1Text, callback_data: `day:${day1}` });
 
-    //   if (day2 !== undefined) {
-    //     const day2Text = selectedDays.includes(day2) ? `✅ ${DAY_NAMES[day2]}` : DAY_NAMES[day2];
-    //     row.push({ text: day2Text, callback_data: `day:${day2}` });
-    //   }
+      if (day2 !== undefined) {
+        const day2Text = selectedDays.includes(day2) ? `✅ ${DAY_NAMES[day2]}` : DAY_NAMES[day2];
+        row.push({ text: day2Text, callback_data: `day:${day2}` });
+      }
 
-    //   buttons.push(row);
-    // }
+      buttons.push(row);
+    }
 
-const btn: InlineKeyboardButton[][] = [];
-
-    btn.push([
-      { text: '✅ Готово', callback_data: 'days_done' },
-      // { text: '❌ Отмена', callback_data: 'cancel' },
+    buttons.push([
+      { text: '✅ Готово', callback_data: 'notification_days_ready' },
+      { text: '❌ Отмена', callback_data: 'notification_days_cancel' },
     ]);
 
     await ctx.replyWithMarkdownV2(escapeText('📅 Выберите дни недели для напоминаний:'), {
       reply_markup: {
-        inline_keyboard: btn,
+        inline_keyboard: buttons,
       },
     });
   }
 
-  // @On('callback_query')
-  // async onCallbackQuery(
-  //   @Ctx() ctx: Scenes.SceneContext & { session?: TSession; update?: { callback_query?: any } },
-  //   @Next() next: () => Promise<void>,
-  // ) {
-  //   const callbackData = ctx.update?.callback_query?.data;
+  @On('callback_query')
+  async onCallbackQuery(
+    @Ctx() ctx: Scenes.SceneContext & { session?: TSession; update?: { callback_query?: any } },
+    @Next() next: () => Promise<void>,
+  ) {
+    const callbackData = ctx.update?.callback_query?.data;
     
-  //   if (!callbackData) {
-  //     return next();
-  //   }
+    if (!callbackData) {
+      return next();
+    }
 
-  //   try {
-  //     await ctx.answerCbQuery();
-  //   } catch (e) {}
+    try {
+      await ctx.answerCbQuery();
+    } catch (e) {}
 
-  //   // Обрабатываем все действия в одном месте
-  //   if (callbackData.startsWith('day:')) {
-  //     const day = Number(callbackData.split(':')[1]) as DayOfWeek;
-  //     const session = ctx.session || { selectedDays: [] };
-  //     const selectedDays = session.selectedDays || [];
+    // Обрабатываем все действия в одном месте
+    if (callbackData.startsWith('day:')) {
+      const day = Number(callbackData.split(':')[1]) as DayOfWeek;
+      const session = ctx.session || { selectedDays: [] };
+      const selectedDays = session.schedule.selectedDays || [];
 
-  //     if (selectedDays.includes(day)) {
-  //       session.selectedDays = selectedDays.filter((d) => d !== day);
-  //     } else {
-  //       session.selectedDays = [...selectedDays, day];
-  //     }
+      if (selectedDays.includes(day)) {
+        session.schedule.selectedDays = selectedDays.filter((d) => d !== day);
+      } else {
+        session.schedule.selectedDays = [...selectedDays, day];
+      }
 
-  //     ctx.session = session;
+      ctx.session = session;
 
-  //     try {
-  //       await ctx.deleteMessage();
-  //     } catch (e) {}
+      try {
+        await ctx.deleteMessage();
+      } catch (e) {}
 
-  //     await this.showDaysSelection(ctx);
-  //     return;
-  //   }
+      await this.showDaysSelection(ctx);
+      return;
+    }
 
-  //   if (callbackData.startsWith('hour:')) {
-  //     const hour = Number(callbackData.split(':')[1]);
-  //     const session = ctx.session || {};
-  //     const selectedTimes = session.selectedTimes || [];
-  //     const timeIndex = session.timeIndex || 0;
+    if (callbackData.startsWith('hour:')) {
+      const hour = Number(callbackData.split(':')[1]);
+      const session = ctx.session || {};
+      const selectedTimes = session.schedule.selectedTimes || [];
+      const timeIndex = session.schedule.timeIndex || 0;
 
-  //     if (!selectedTimes[timeIndex]) {
-  //       selectedTimes[timeIndex] = { hour, minute: 0 };
-  //     } else {
-  //       selectedTimes[timeIndex].hour = hour;
-  //     }
+      if (!selectedTimes[timeIndex]) {
+        selectedTimes[timeIndex] = { hour, minute: 0 };
+      } else {
+        selectedTimes[timeIndex].hour = hour;
+      }
 
-  //     session.selectedTimes = selectedTimes;
-  //     session.selectingHour = false;
-  //     ctx.session = session;
+      session.schedule.selectedTimes = selectedTimes;
+      session.schedule.selectingHour = false;
+      ctx.session = { ...ctx.session, schedule: session.schedule };
 
-  //     try {
-  //       await ctx.deleteMessage();
-  //     } catch (e) {}
+      try {
+        await ctx.deleteMessage();
+      } catch (e) {}
 
-  //     await this.showMinuteSelection(ctx);
-  //     return;
-  //   }
+      await this.showMinuteSelection(ctx);
+      return;
+    }
 
-  //   if (callbackData.startsWith('minute:')) {
-  //     const minute = Number(callbackData.split(':')[1]);
-  //     const session = ctx.session || {};
-  //     const selectedTimes = session.selectedTimes || [];
-  //     const timeIndex = session.timeIndex || 0;
+    if (callbackData.startsWith('minute:')) {
+      const minute = Number(callbackData.split(':')[1]);
+      const session = ctx.session || {};
+      const selectedTimes = session.schedule.selectedTimes || [];
+      const timeIndex = session.schedule.timeIndex || 0;
 
-  //     if (!selectedTimes[timeIndex]) {
-  //       selectedTimes[timeIndex] = { hour: 9, minute };
-  //     } else {
-  //       selectedTimes[timeIndex].minute = minute;
-  //     }
+      if (!selectedTimes[timeIndex]) {
+        selectedTimes[timeIndex] = { hour: 9, minute };
+      } else {
+        selectedTimes[timeIndex].minute = minute;
+      }
 
-  //     session.selectedTimes = selectedTimes;
-  //     session.timeIndex = (timeIndex || 0) + 1;
-  //     ctx.session = session;
+      session.schedule.selectedTimes = selectedTimes;
+      session.schedule.timeIndex = (timeIndex || 0) + 1;
+      ctx.session = { ...ctx.session, schedule: session.schedule };
 
-  //     try {
-  //       await ctx.deleteMessage();
-  //     } catch (e) {}
+      try {
+        await ctx.deleteMessage();
+      } catch (e) {}
 
-  //     if (selectedTimes.length >= 3 || session.timeIndex >= 3) {
-  //       await this.showConfirmation(ctx);
-  //     } else {
-  //       await ctx.reply(
-  //         `✅ Время ${selectedTimes.length} добавлено!\n\n` +
-  //         `Хотите добавить еще одно время? (максимум 3)`,
-  //         {
-  //           reply_markup: {
-  //             inline_keyboard: [
-  //               [
-  //                 { text: '➕ Добавить еще', callback_data: 'add_time' },
-  //                 { text: '✅ Готово', callback_data: 'times_done' },
-  //               ],
-  //               [{ text: '❌ Отмена', callback_data: 'cancel' }],
-  //             ],
-  //           },
-  //         },
-  //       );
-  //     }
-  //     return;
-  //   }
+      if (selectedTimes.length >= 3 || session.schedule.timeIndex >= 3) {
+        await this.showConfirmation(ctx);
+      } else {
+        await ctx.reply(
+          `✅ Время ${selectedTimes.length} добавлено!\n\n` +
+          `Хотите добавить еще одно время? (максимум 3)`,
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: '➕ Добавить еще', callback_data: 'add_time' },
+                  { text: '✅ Готово', callback_data: 'times_done' },
+                ],
+                [{ text: '❌ Отмена', callback_data: 'cancel' }],
+              ],
+            },
+          },
+        );
+      }
+      return;
+    }
 
-  //   // Для остальных действий вызываем next, чтобы они обработались через @Action
-  //   return next();
-  // }
+    // Для остальных действий вызываем next, чтобы они обработались через @Action
+    return next();
+  }
 
-  @Action('days_done')
+  @Action('notification_days_ready')
   async onDaysDone(@Ctx() ctx: Scenes.SceneContext & { session?: TSession }) {
-    console.log('===============');
+    try {
+      await ctx.answerCbQuery();
+    } catch (e) {}
 
-  
-  
-    // try {
-    //   await ctx.answerCbQuery();
-    // } catch (e) {}
+    const session = ctx.session || {};
+    const selectedDays = session.schedule.selectedDays || [];
 
-    // const session = ctx.session || {};
-    // const selectedDays = session.selectedDays || [];
+    if (selectedDays.length === 0) {
+      await ctx.reply('❌ Пожалуйста, выберите хотя бы один день');
+      return;
+    }
 
-    // if (selectedDays.length === 0) {
-    //   await ctx.reply('❌ Пожалуйста, выберите хотя бы один день');
-    //   return;
-    // }
+    session.schedule.currentStep = 'hours';
+    session.schedule.selectedTimes = [];
+    session.schedule.timeIndex = 0;
+    ctx.session = { ...ctx.session, schedule: session.schedule };
 
-    // session.currentStep = 'hours';
-    // session.selectedTimes = [];
-    // session.timeIndex = 0;
-    // ctx.session = session;
+    try {
+      await ctx.deleteMessage();
+    } catch (e) {}
 
-    // try {
-    //   await ctx.deleteMessage();
-    // } catch (e) {}
-
-    // await this.showTimeSelection(ctx);
+    await this.showTimeSelection(ctx);
   }
 
   private async showTimeSelection(
     ctx: Scenes.SceneContext & { session?: TSession },
   ) {
     const session = ctx.session || {};
-    const selectedTimes = session.selectedTimes || [];
-    const timeIndex = session.timeIndex || 0;
+    const selectedTimes = session.schedule.selectedTimes || [];
+    const timeIndex = session.schedule.timeIndex || 0;
 
     if (selectedTimes.length >= 3) {
       await this.showConfirmation(ctx);
@@ -328,8 +326,8 @@ const btn: InlineKeyboardButton[][] = [];
     ctx: Scenes.SceneContext & { session?: TSession },
   ) {
     const session = ctx.session || {};
-    const selectedTimes = session.selectedTimes || [];
-    const timeIndex = session.timeIndex || 0;
+    const selectedTimes = session.schedule.selectedTimes || [];
+    const timeIndex = session.schedule.timeIndex || 0;
     const currentTime = selectedTimes[timeIndex] || { hour: 9, minute: 0 };
 
     await ctx.reply(
@@ -354,46 +352,46 @@ const btn: InlineKeyboardButton[][] = [];
   }
 
 
-  // @Action('add_time')
-  // async onAddTime(@Ctx() ctx: Scenes.SceneContext & { session?: TSession }) {
-  //   try {
-  //     await ctx.answerCbQuery();
-  //   } catch (e) {}
+  @Action('add_time')
+  async onAddTime(@Ctx() ctx: Scenes.SceneContext & { session?: TSession }) {
+    try {
+      await ctx.answerCbQuery();
+    } catch (e) {}
 
-  //   try {
-  //     await ctx.deleteMessage();
-  //   } catch (e) {}
+    try {
+      await ctx.deleteMessage();
+    } catch (e) {}
 
-  //   await this.showTimeSelection(ctx);
-  // }
+    await this.showTimeSelection(ctx);
+  }
 
-  // @Action('times_done')
-  // async onTimesDone(@Ctx() ctx: Scenes.SceneContext & { session?: TSession }) {
-  //   try {
-  //     await ctx.answerCbQuery();
-  //   } catch (e) {}
+  @Action('times_done')
+  async onTimesDone(@Ctx() ctx: Scenes.SceneContext & { session?: TSession }) {
+    try {
+      await ctx.answerCbQuery();
+    } catch (e) {}
 
-  //   const session = ctx.session || {};
-  //   const selectedTimes = session.selectedTimes || [];
+    const session = ctx.session || {};
+    const selectedTimes = session.schedule.selectedTimes || [];
 
-  //   if (selectedTimes.length === 0) {
-  //     await ctx.reply('❌ Пожалуйста, выберите хотя бы одно время');
-  //     return;
-  //   }
+    if (selectedTimes.length === 0) {
+      await ctx.reply('❌ Пожалуйста, выберите хотя бы одно время');
+      return;
+    }
 
-  //   try {
-  //     await ctx.deleteMessage();
-  //   } catch (e) {}
+    try {
+      await ctx.deleteMessage();
+    } catch (e) {}
 
-  //   await this.showConfirmation(ctx);
-  // }
+    await this.showConfirmation(ctx);
+  }
 
   private async showConfirmation(
     ctx: Scenes.SceneContext & { session?: TSession },
   ) {
     const session = ctx.session || {};
-    const selectedDays = session.selectedDays || [];
-    const selectedTimes = session.selectedTimes || [];
+    const selectedDays = session.schedule.selectedDays || [];
+    const selectedTimes = session.schedule.selectedTimes || [];
 
     const daysText = selectedDays
       .sort((a, b) => a - b)
@@ -422,159 +420,159 @@ const btn: InlineKeyboardButton[][] = [];
     );
   }
 
-  // @Action('confirm')
-  // async onConfirm(@Ctx() ctx: Scenes.SceneContext & { session?: TSession; update?: { callback_query?: any } }) {
-  //   try {
-  //     await ctx.answerCbQuery();
-  //   } catch (e) {}
+  @Action('confirm')
+  async onConfirm(@Ctx() ctx: Scenes.SceneContext & { session?: TSession; update?: { callback_query?: any } }) {
+    try {
+      await ctx.answerCbQuery();
+    } catch (e) {}
 
-  //   const chatId = ctx.update?.callback_query?.message?.chat?.id;
+    const chatId = ctx.update?.callback_query?.message?.chat?.id;
 
-  //   if (!chatId) {
-  //     await ctx.reply('Ошибка: не удалось определить chatId');
-  //     return;
-  //   }
+    if (!chatId) {
+      await ctx.reply('Ошибка: не удалось определить chatId');
+      return;
+    }
 
-  //   const session = ctx.session || {};
-  //   const selectedDays = session.selectedDays || [];
-  //   const selectedTimes = session.selectedTimes || [];
+    const session = ctx.session || {};
+    const selectedDays = session.schedule.selectedDays || [];
+    const selectedTimes = session.schedule.selectedTimes || [];
 
-  //   if (selectedDays.length === 0 || selectedTimes.length === 0) {
-  //     await ctx.reply('❌ Ошибка: не заполнены все поля');
-  //     return;
-  //   }
+    if (selectedDays.length === 0 || selectedTimes.length === 0) {
+      await ctx.reply('❌ Ошибка: не заполнены все поля');
+      return;
+    }
 
-  //   // Сортируем дни и время
-  //   const sortedDays = [...selectedDays].sort((a, b) => a - b);
-  //   const sortedTimes = [...selectedTimes].sort((a, b) => {
-  //     if (a.hour !== b.hour) return a.hour - b.hour;
-  //     return a.minute - b.minute;
-  //   });
+    // Сортируем дни и время
+    const sortedDays = [...selectedDays].sort((a, b) => a - b);
+    const sortedTimes = [...selectedTimes].sort((a, b) => {
+      if (a.hour !== b.hour) return a.hour - b.hour;
+      return a.minute - b.minute;
+    });
 
-  //   try {
-  //     await this.notificationScheduleProvider.createOrUpdate(chatId, {
-  //       chatId,
-  //       daysOfWeek: sortedDays,
-  //       times: sortedTimes,
-  //       isActive: true,
-  //     });
+    try {
+      await this.notificationScheduleProvider.createOrUpdate(chatId, {
+        chatId,
+        daysOfWeek: sortedDays,
+        times: sortedTimes,
+        isActive: true,
+      });
 
-  //     try {
-  //       await ctx.deleteMessage();
-  //     } catch (e) {}
+      try {
+        await ctx.deleteMessage();
+      } catch (e) {}
 
-  //     await ctx.reply('✅ Расписание успешно сохранено!');
+      await ctx.reply('✅ Расписание успешно сохранено!');
 
-  //     await ctx.scene.leave();
-  //     await ctx.scene.enter('MENU_SCENE_ID');
-  //   } catch (error: any) {
-  //     await ctx.reply(
-  //       `❌ Ошибка при сохранении расписания: ${error?.message || 'Неизвестная ошибка'}`,
-  //     );
-  //   }
-  // }
+      await ctx.scene.leave();
+      await ctx.scene.enter('MENU_SCENE_ID');
+    } catch (error: any) {
+      await ctx.reply(
+        `❌ Ошибка при сохранении расписания: ${error?.message || 'Неизвестная ошибка'}`,
+      );
+    }
+  }
 
-  // @Action('toggle')
-  // async onToggle(@Ctx() ctx: Scenes.SceneContext & { update?: { callback_query?: any } }) {
-  //   try {
-  //     await ctx.answerCbQuery();
-  //   } catch (e) {}
+  @Action('toggle')
+  async onToggle(@Ctx() ctx: Scenes.SceneContext & { update?: { callback_query?: any } }) {
+    try {
+      await ctx.answerCbQuery();
+    } catch (e) {}
 
-  //   const chatId = ctx.update?.callback_query?.message?.chat?.id;
+    const chatId = ctx.update?.callback_query?.message?.chat?.id;
 
-  //   if (!chatId) {
-  //     await ctx.reply('Ошибка: не удалось определить chatId');
-  //     return;
-  //   }
+    if (!chatId) {
+      await ctx.reply('Ошибка: не удалось определить chatId');
+      return;
+    }
 
-  //   const existingSchedule =
-  //     await this.notificationScheduleProvider.findByChatId(chatId);
+    const existingSchedule =
+      await this.notificationScheduleProvider.findByChatId(chatId);
 
-  //   if (!existingSchedule) {
-  //     await ctx.reply('❌ Расписание не найдено');
-  //     return;
-  //   }
+    if (!existingSchedule) {
+      await ctx.reply('❌ Расписание не найдено');
+      return;
+    }
 
-  //   const newStatus = !existingSchedule.isActive;
-  //   await this.notificationScheduleProvider.updateStatus(chatId, newStatus);
+    const newStatus = !existingSchedule.isActive;
+    await this.notificationScheduleProvider.updateStatus(chatId, newStatus);
 
-  //   try {
-  //     await ctx.deleteMessage();
-  //   } catch (e) {}
+    try {
+      await ctx.deleteMessage();
+    } catch (e) {}
 
-  //   await ctx.reply(
-  //     `✅ Напоминания ${newStatus ? 'включены' : 'выключены'}`,
-  //   );
+    await ctx.reply(
+      `✅ Напоминания ${newStatus ? 'включены' : 'выключены'}`,
+    );
 
-  //   await ctx.scene.leave();
-  //   await ctx.scene.enter('MENU_SCENE_ID');
-  // }
+    await ctx.scene.leave();
+    await ctx.scene.enter('MENU_SCENE_ID');
+  }
 
-  // @Action('edit')
-  // async onEdit(@Ctx() ctx: Scenes.SceneContext & { session?: TSession; update?: { callback_query?: any } }) {
-  //   try {
-  //     await ctx.answerCbQuery();
-  //   } catch (e) {}
+  @Action('edit')
+  async onEdit(@Ctx() ctx: Scenes.SceneContext & { session?: TSession; update?: { callback_query?: any } }) {
+    try {
+      await ctx.answerCbQuery();
+    } catch (e) {}
 
-  //   const chatId = ctx.update?.callback_query?.message?.chat?.id;
+    const chatId = ctx.update?.callback_query?.message?.chat?.id;
 
-  //   if (!chatId) {
-  //     await ctx.reply('Ошибка: не удалось определить chatId');
-  //     return;
-  //   }
+    if (!chatId) {
+      await ctx.reply('Ошибка: не удалось определить chatId');
+      return;
+    }
 
-  //   const existingSchedule =
-  //     await this.notificationScheduleProvider.findByChatId(chatId);
+    const existingSchedule =
+      await this.notificationScheduleProvider.findByChatId(chatId);
 
-  //   if (!existingSchedule) {
-  //     await ctx.reply('❌ Расписание не найдено');
-  //     return;
-  //   }
+    if (!existingSchedule) {
+      await ctx.reply('❌ Расписание не найдено');
+      return;
+    }
 
-  //   // Загружаем существующие данные в сессию
-  //   ctx.session = {
-  //     selectedDays: existingSchedule.daysOfWeek,
-  //     selectedTimes: existingSchedule.times,
-  //     currentStep: 'days',
-  //   };
+    // Загружаем существующие данные в сессию
+    ctx.session.schedule = {
+      selectedDays: existingSchedule.daysOfWeek,
+      selectedTimes: existingSchedule.times,
+      currentStep: 'days',
+    };
 
-  //   try {
-  //     await ctx.deleteMessage();
-  //   } catch (e) {}
+    try {
+      await ctx.deleteMessage();
+    } catch (e) {}
 
-  //   await this.showDaysSelection(ctx);
-  // }
+    await this.showDaysSelection(ctx);
+  }
 
-  // @Action('delete')
-  // async onDelete(@Ctx() ctx: Scenes.SceneContext & { update?: { callback_query?: any } }) {
-  //   try {
-  //     await ctx.answerCbQuery();
-  //   } catch (e) {}
+  @Action('delete')
+  async onDelete(@Ctx() ctx: Scenes.SceneContext & { update?: { callback_query?: any } }) {
+    try {
+      await ctx.answerCbQuery();
+    } catch (e) {}
 
-  //   const chatId = ctx.update?.callback_query?.message?.chat?.id;
+    const chatId = ctx.update?.callback_query?.message?.chat?.id;
 
-  //   if (!chatId) {
-  //     await ctx.reply('Ошибка: не удалось определить chatId');
-  //     return;
-  //   }
+    if (!chatId) {
+      await ctx.reply('Ошибка: не удалось определить chatId');
+      return;
+    }
 
-  //   await this.notificationScheduleProvider.delete(chatId);
+    await this.notificationScheduleProvider.delete(chatId);
 
-  //   try {
-  //     await ctx.deleteMessage();
-  //   } catch (e) {}
+    try {
+      await ctx.deleteMessage();
+    } catch (e) {}
 
-  //   await ctx.reply('✅ Расписание удалено');
+    await ctx.reply('✅ Расписание удалено');
 
-  //   await ctx.scene.leave();
-  //   await ctx.scene.enter('MENU_SCENE_ID');
-  // }
+    await ctx.scene.leave();
+    await ctx.scene.enter('MENU_SCENE_ID');
+  }
 
-  @Action('cancel')
+  @Action('notification_days_cancel')
   async onCancel(@Ctx() ctx: Scenes.SceneContext) {
-    // try {
-    //   await ctx.answerCbQuery();
-    // } catch (e) {}
+    try {
+      await ctx.answerCbQuery();
+    } catch (e) {}
 
     try {
       await ctx.deleteMessage();

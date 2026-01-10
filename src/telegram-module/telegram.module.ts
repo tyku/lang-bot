@@ -20,7 +20,8 @@ import { MessageStorageModule } from '../message-storage-module/message-storage.
 import { SupportModule } from '../support-module/support.module';
 import { SupportSceneProvider } from './scenes/support.provider';
 import { NotificationModule } from '../notifications-module/notification.module';
-import { NotificationScheduleScene } from './scenes/notification-schedule.scene';
+import { NotificationScheduleSceneProvider } from './scenes/notification-schedule.scene';
+import { SubscriptionProvider } from './scenes/subscription.provider';
 
 @Module({
   imports: [
@@ -46,7 +47,8 @@ import { NotificationScheduleScene } from './scenes/notification-schedule.scene'
     PromocodeProvider,
     MessageCleanerService,
     SupportSceneProvider,
-    NotificationScheduleScene,
+    NotificationScheduleSceneProvider,
+    SubscriptionProvider,
   ],
 })
 export class TelegramModule {}
